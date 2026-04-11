@@ -211,6 +211,11 @@ interface AppState {
   inventoryByProduct: Record<string, InventoryRecord[]>;
   setInventoryForProduct: (productId: string, records: InventoryRecord[]) => void;
 
+  // Parsed file data — ALL uploaded file types stored here for Agent access
+  // parsedFileDataByProduct[productId][fileType] = rows[]
+  parsedFileDataByProduct: Record<string, Record<string, AnyRow[]>>;
+  setParsedFileData: (productId: string, fileType: string, rows: AnyRow[]) => void;
+
   // Computed helpers
   getSelectedProduct: () => Product | null;
   getAlertsForProduct: (productId: string) => Alert[];
@@ -384,6 +389,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   setInventoryForProduct: (productId, records) =>
     set((s) => ({
       inventoryByProduct: { ...s.inventoryByProduct, [productId]: records },
+    })),
+
+  // ── Parsed file data (all types) ─────────────────────────────────────────────
+  parsedFileDataByProduct: {},
+  setParsedFileData: (productId, fileType, rows) =>
+    set((s) => ({
+      parsedFileDataByProduct: {
+        ...s.parsedFileDataByProduct,
+        [productId]: {
+          ...(s.parsedFileDataByProduct[productId] ?? {}),
+          [fileType]: rows,
+        },
+      },
     })),
 
   // ── Computed ─────────────────────────────────────────────────────────────────

@@ -52,6 +52,7 @@ export default function FunctionPanel() {
     adDataByProduct,
     setAdDataForProduct,
     addAlerts,
+    setParsedFileData,
   } = useAppStore();
 
   const [filesOpen, setFilesOpen]   = useState(true);
@@ -130,6 +131,11 @@ export default function FunctionPanel() {
         setAdDataForProduct(product.id, newAdData);
         const newAlerts = runAlertRules(product.id, newAdData, product.stage);
         addAlerts(product.id, newAlerts);
+      }
+
+      // ── 通用存储：所有文件类型的 parsed 数据均写入，Agent 工具可按 fileType 读取
+      if (Array.isArray(data.parsed) && data.parsed.length > 0) {
+        setParsedFileData(product.id, data.fileType, data.parsed);
       }
 
       const label = data.message ?? `${data.fileType} · ${data.rowCount ?? 0} 行`;

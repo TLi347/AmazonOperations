@@ -12,8 +12,15 @@ import {
   Check,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
-import { buildSystemPrompt } from "@/lib/systemPrompt";
+import { buildAgentSystemPrompt } from "@/lib/systemPrompt";
+import {
+  executeToolCall,
+  TOOL_LABELS,
+  type ToolName,
+  type AgentState,
+} from "@/lib/agentTools";
 import { cn } from "@/lib/utils";
+import type Anthropic from "@anthropic-ai/sdk";
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
 
@@ -299,19 +306,21 @@ export default function ChatPanel() {
     selectedModel,
     getSelectedProduct,
     getFilesForProduct,
+    getAlertsForProduct,
     metricsByProduct,
     inventoryByProduct,
+    adDataByProduct,
+    parsedFileDataByProduct,
   } = useAppStore();
 
   const product = getSelectedProduct();
   const productId = product?.id ?? "";
   const messages = chatByProduct[productId] ?? [];
   const files = getFilesForProduct(productId);
-  const metrics = metricsByProduct[productId];
-  const inventory = inventoryByProduct[productId];
 
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [dislikedIds, setDislikedIds] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -361,88 +370,156 @@ export default function ChatPanel() {
         });
       }
 
-      // Add empty assistant message (streaming placeholder)
-      const aiMsgId = `a-${Date.now()}`;
+      // Add empty assistant placeholder for streaming/status display
       addChatMessage(productId, {
-        id: aiMsgId,
+        id: `a-${Date.now()}`,
         role: "assistant",
         content: "",
         createdAt: new Date().toISOString(),
       });
 
       setIsStreaming(true);
+      setAgentStatus("思考中…");
 
-      // Build messages for API from current store state
-      const currentMsgs = useAppStore.getState().chatByProduct[productId] ?? [];
-      const apiMessages = currentMsgs.slice(0, -1).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Build agent state from Zustand (tool executors read from here)
+      const storeState = useAppStore.getState();
+      const agentState: AgentState = {
+        productId,
+        metrics: storeState.metricsByProduct[productId]
+          ? {
+              today:       storeState.metricsByProduct[productId]?.today     as Record<string, number> | undefined,
+              yesterday:   storeState.metricsByProduct[productId]?.yesterday as Record<string, number> | undefined,
+              w7:          storeState.metricsByProduct[productId]?.w7        as Record<string, number> | undefined,
+              w14:         storeState.metricsByProduct[productId]?.w14       as Record<string, number> | undefined,
+              d30:         storeState.metricsByProduct[productId]?.d30       as Record<string, number> | undefined,
+              acosHistory: storeState.metricsByProduct[productId]?.acosHistory,
+            }
+          : undefined,
+        inventory:  storeState.inventoryByProduct[productId] ?? [],
+        adData:     storeState.adDataByProduct[productId],
+        alerts: (storeState.alerts.filter(
+          (a) => a.productId === productId
+        ) as unknown) as AgentState["alerts"],
+        files: storeState.filesByProduct[productId] ?? [],
+        parsedFileData: storeState.parsedFileDataByProduct[productId],
+      };
 
+      // Build initial Anthropic message array from display history
+      // (exclude last empty assistant placeholder we just added)
+      const displayHistory = storeState.chatByProduct[productId] ?? [];
+      const agentMessages: Anthropic.MessageParam[] = displayHistory
+        .slice(0, -1) // drop the empty placeholder
+        .filter((m) => m.content !== "")
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+      // Add the new user message
+      agentMessages.push({ role: "user", content: userText });
+
+      const systemPrompt = buildAgentSystemPrompt(product, files);
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
+      const MAX_STEPS = 10;
+      let stepCount = 0;
+
       try {
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({
-            messages: apiMessages,
-            systemPrompt: buildSystemPrompt(product, files, metrics, inventory),
-            model: selectedModel,
-          }),
-        });
+        while (stepCount < MAX_STEPS) {
+          stepCount++;
 
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({ error: "请求失败" }));
-          updateLastAssistantMessage(productId, `❌ 错误：${err.error ?? "请求失败"}`);
-          return;
-        }
+          const res = await fetch("/api/agent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({ messages: agentMessages, systemPrompt, model: selectedModel }),
+          });
 
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let accumulated = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") break;
-
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.error) {
-                accumulated += `\n\n❌ 错误：${parsed.error}`;
-              } else if (parsed.text) {
-                accumulated += parsed.text;
-              }
-              updateLastAssistantMessage(productId, accumulated);
-            } catch {
-              // skip malformed chunk
-            }
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "请求失败" }));
+            updateLastAssistantMessage(productId, `❌ 错误：${(err as { error?: string }).error ?? "请求失败"}`);
+            return;
           }
+
+          const contentType = res.headers.get("content-type") ?? "";
+
+          // ── SSE stream: final text response ──────────────────────────────
+          if (contentType.includes("text/event-stream")) {
+            setAgentStatus(null);
+            const reader = res.body!.getReader();
+            const decoder = new TextDecoder();
+            let accumulated = "";
+
+            outer: while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value, { stream: true });
+              for (const line of chunk.split("\n")) {
+                if (!line.startsWith("data: ")) continue;
+                const data = line.slice(6).trim();
+                if (data === "[DONE]") break outer;
+                try {
+                  const parsed = JSON.parse(data) as { text?: string; error?: string };
+                  if (parsed.error) accumulated += `\n\n❌ ${parsed.error}`;
+                  else if (parsed.text) accumulated += parsed.text;
+                  updateLastAssistantMessage(productId, accumulated);
+                } catch { /* skip malformed */ }
+              }
+            }
+
+            if (!accumulated) {
+              updateLastAssistantMessage(productId, "（未收到回复，请重试）");
+            }
+            break; // loop done
+          }
+
+          // ── JSON: tool_use step ───────────────────────────────────────────
+          const json = await res.json() as {
+            type: string;
+            content: Anthropic.ContentBlock[];
+          };
+
+          if (json.type !== "tool_use" || !Array.isArray(json.content)) {
+            updateLastAssistantMessage(productId, "❌ Agent 返回格式错误");
+            break;
+          }
+
+          // Add assistant's tool_use blocks to message history
+          agentMessages.push({ role: "assistant", content: json.content });
+
+          // Execute each tool call locally
+          const toolResults: Anthropic.ToolResultBlockParam[] = [];
+          for (const block of json.content) {
+            if (block.type !== "tool_use") continue;
+            const toolName = block.name as ToolName;
+            setAgentStatus(`查询：${TOOL_LABELS[toolName] ?? block.name}…`);
+            const result = executeToolCall(
+              toolName,
+              block.input as Record<string, unknown>,
+              agentState
+            );
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: JSON.stringify(result),
+            });
+          }
+
+          // Add tool results as user message and continue loop
+          agentMessages.push({ role: "user", content: toolResults });
+          setAgentStatus("分析中…");
         }
 
-        // Ensure final content is committed even if updateLastAssistantMessage wasn't called
-        if (accumulated === "") {
-          updateLastAssistantMessage(productId, "（未收到回复，请重试）");
+        if (stepCount >= MAX_STEPS) {
+          updateLastAssistantMessage(productId, "（Agent 循环超出步数限制，请重试）");
         }
       } catch (err) {
         if ((err as Error).name === "AbortError") {
-          // User navigated away / product switched
           removeLastMessage(productId);
           return;
         }
         updateLastAssistantMessage(productId, "❌ 网络错误，请稍后重试。");
       } finally {
         setIsStreaming(false);
+        setAgentStatus(null);
       }
     },
     [
@@ -450,8 +527,6 @@ export default function ChatPanel() {
       product,
       productId,
       files,
-      metrics,
-      inventory,
       selectedModel,
       addChatMessage,
       updateLastAssistantMessage,
@@ -612,7 +687,16 @@ export default function ChatPanel() {
                       style={{ background: "#f5f4f2", maxWidth: "100%" }}
                     >
                       {showTyping ? (
-                        <TypingDots />
+                        agentStatus ? (
+                          <div className="flex items-center gap-2" style={{ padding: "2px 0" }}>
+                            <TypingDots />
+                            <span className="text-xs" style={{ color: "#a3a3a3" }}>
+                              {agentStatus}
+                            </span>
+                          </div>
+                        ) : (
+                          <TypingDots />
+                        )
                       ) : (
                         <MarkdownContent content={msg.content} />
                       )}

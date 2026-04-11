@@ -44,7 +44,7 @@ export function parseSearchTerm(buffer: Buffer): SearchTermRow[] {
     .map((row) => {
       const clicks  = toInt(row["点击量"]);
       const impr    = toInt(row["曝光量/展示次数"]);
-      const spend   = toNum(row["广告花费"]);
+      const spend   = Math.abs(toNum(row["广告花费"]));
       const sales   = toNum(row["广告销售额"]);
       const orders  = toInt(row["广告订单量"]);
       const acosRaw = toNum(row["ACoS"]);
