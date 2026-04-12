@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon 广告知识体系</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --surface-2: #fafafa;
+    --border: #d2d2d7;
+    --border-light: #e8e8ed;
+    --text: #1d1d1f;
+    --text-secondary: #6e6e73;
+    --text-dim: #86868b;
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --accent-bg: rgba(0,113,227,.06);
+    --orange: #ff9900;
+    --orange-bg: rgba(255,153,0,.08);
+    --green: #34c759;
+    --green-bg: rgba(52,199,89,.08);
+    --red: #ff3b30;
+    --sidebar-w: 280px;
+    --header-h: 56px;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-lg: 0 4px 16px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.04);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== HEADER ===== */
+  .header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: var(--header-h);
+    background: rgba(255,255,255,.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-light);
+    display: flex; align-items: center; padding: 0 24px;
+    gap: 16px;
+  }
+  .header-brand {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 16px; font-weight: 600; color: var(--text);
+    text-decoration: none;
+  }
+  .header-brand svg { flex-shrink: 0; }
+  .header-tag {
+    font-size: 11px; font-weight: 500; color: var(--accent);
+    background: var(--accent-bg);
+    padding: 2px 8px; border-radius: 4px;
+    letter-spacing: .02em;
+  }
+  .menu-toggle {
+    display: none;
+    background: none; border: none; cursor: pointer;
+    padding: 6px; border-radius: 6px;
+    color: var(--text);
+  }
+  .menu-toggle:hover { background: var(--accent-bg); }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar {
+    position: fixed; top: var(--header-h); left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border-light);
+    overflow-y: auto; z-index: 90;
+    padding: 20px 0;
+    transition: transform .3s ease;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .nav-section { margin-bottom: 8px; }
+  .nav-section-title {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 20px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: var(--text-dim);
+  }
+  .nav-section-title .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 4px;
+    font-size: 10px; font-weight: 700;
+    background: var(--accent-bg); color: var(--accent);
+  }
+  .nav-link {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 20px 7px 36px; font-size: 13px; color: var(--text-secondary);
+    text-decoration: none; border-left: 2px solid transparent;
+    transition: all .15s ease;
+    line-height: 1.4;
+  }
+  .nav-link:hover { color: var(--accent); background: var(--accent-bg); }
+  .nav-link.active {
+    color: var(--accent); font-weight: 500;
+    border-left-color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .nav-link .slide-num {
+    font-size: 10px; color: var(--text-dim); font-weight: 500;
+    min-width: 16px;
+  }
+
+  /* ===== MAIN ===== */
+  .main {
+    margin-left: var(--sidebar-w);
+    margin-top: var(--header-h);
+    padding: 32px 40px 80px;
+    max-width: 960px;
+  }
+
+  /* ===== SECTION HEADER ===== */
+  .section-header {
+    margin: 48px 0 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--accent);
+  }
+  .section-header:first-child { margin-top: 0; }
+  .section-header h2 {
+    font-size: 28px; font-weight: 700; color: var(--text);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-header h2 .badge {
+    font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 5px;
+    background: var(--accent); color: #fff;
+  }
+  .section-header .section-desc {
+    margin-top: 6px; font-size: 14px; color: var(--text-secondary);
+  }
+
+  /* ===== SLIDE CARD ===== */
+  .slide-card {
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: box-shadow .2s ease;
+  }
+  .slide-card:hover { box-shadow: var(--shadow-lg); }
+
+  .slide-card-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--surface-2);
+  }
+  .slide-card-header .slide-idx {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 28px; height: 22px; border-radius: 5px;
+    font-size: 11px; font-weight: 700;
+    background: var(--accent-bg); color: var(--accent);
+    padding: 0 6px;
+  }
+  .slide-card-header h3 {
+    font-size: 16px; font-weight: 600; color: var(--text);
+    flex: 1;
+  }
+  .slide-card-header .category-tag {
+    font-size: 11px; font-weight: 500; color: var(--text-dim);
+    background: var(--bg); border: 1px solid var(--border-light);
+    padding: 2px 8px; border-radius: 4px;
+  }
+
+  .slide-card-body {
+    display: flex; gap: 0;
+  }
+
+  .slide-thumb-wrap {
+    flex-shrink: 0;
+    width: 320px;
+    padding: 16px;
+    display: flex; align-items: flex-start;
+  }
+  .slide-thumb {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease;
+    display: block;
+  }
+  .slide-thumb:hover {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .slide-content {
+    flex: 1;
+    padding: 16px 20px 16px 0;
+    min-width: 0;
+  }
+  .slide-content .body-text {
+    font-size: 14px; line-height: 1.75;
+    color: var(--text-secondary);
+    white-space: pre-line;
+  }
+  .slide-content .body-text + .body-text {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-light);
+  }
+  .slide-content .subtitle {
+    font-size: 12px; font-weight: 500; color: var(--text-dim);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  /* Cards with no body text -- just the image */
+  .slide-card-body.image-only .slide-thumb-wrap {
+    width: 100%; max-width: 560px;
+  }
+
+  /* ===== LIGHTBOX ===== */
+  .lightbox {
+    display: none;
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    align-items: center; justify-content: center;
+    cursor: zoom-out;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img {
+    max-width: 90vw; max-height: 90vh;
+    border-radius: var(--radius);
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .lightbox-close {
+    position: absolute; top: 20px; right: 24px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(255,255,255,.15); border: none;
+    color: #fff; font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s;
+  }
+  .lightbox-close:hover { background: rgba(255,255,255,.25); }
+  .lightbox-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(255,255,255,.15); border: none;
+    color: #fff; font-size: 22px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s;
+  }
+  .lightbox-nav:hover { background: rgba(255,255,255,.25); }
+  .lightbox-prev { left: 20px; }
+  .lightbox-next { right: 20px; }
+  .lightbox-caption {
+    position: absolute; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,.5); color: #fff;
+    padding: 6px 16px; border-radius: 6px;
+    font-size: 13px; font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* ===== BACK TO TOP ===== */
+  .back-to-top {
+    position: fixed; bottom: 24px; right: 24px;
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,113,227,.3);
+    opacity: 0; transform: translateY(12px);
+    transition: opacity .2s, transform .2s;
+    z-index: 50;
+  }
+  .back-to-top.visible { opacity: 1; transform: translateY(0); }
+  .back-to-top:hover { background: var(--accent-hover); }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 1024px) {
+    .slide-card-body { flex-direction: column; }
+    .slide-thumb-wrap { width: 100%; max-width: 480px; }
+    .slide-content { padding: 0 20px 16px; }
+  }
+  @media (max-width: 768px) {
+    .menu-toggle { display: flex; }
+    .sidebar {
+      transform: translateX(-100%);
+      box-shadow: none;
+      width: 280px;
+    }
+    .sidebar.open {
+      transform: translateX(0);
+      box-shadow: 4px 0 24px rgba(0,0,0,.1);
+    }
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.3); z-index: 85;
+    }
+    .sidebar-overlay.open { display: block; }
+    .main { margin-left: 0; padding: 24px 16px 80px; }
+    .slide-thumb-wrap { max-width: 100%; }
+    .section-header h2 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
+    </svg>
+  </button>
+  <a href="#" class="header-brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="6" fill="#0071e3"/>
+      <text x="12" y="16" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" font-family="system-ui">A</text>
+    </svg>
+    Amazon 广告知识体系
+  </a>
+  <span class="header-tag">Keynote Presentation</span>
+</header>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="sidebar">
+  <!-- Section 1 -->
+  <div class="nav-section">
+    <div class="nav-section-title"><span class="num">1</span> 基础概念</div>
+    <a class="nav-link" href="#slide-4"><span class="slide-num">04</span> eCommerce 底层逻辑</a>
+    <a class="nav-link" href="#slide-5"><span class="slide-num">05</span> 广告框架 PPC &amp; DSP</a>
+    <a class="nav-link" href="#slide-6"><span class="slide-num">06</span> ACoS &amp; RoAS</a>
+    <a class="nav-link" href="#slide-7"><span class="slide-num">07</span> 盈亏平衡 ACoS</a>
+    <a class="nav-link" href="#slide-8"><span class="slide-num">08</span> 驱动 ACoS 的因素</a>
+    <a class="nav-link" href="#slide-9"><span class="slide-num">09</span> TACoS 整体产出</a>
+    <a class="nav-link" href="#slide-10"><span class="slide-num">10</span> 关键因素: CTR</a>
+    <a class="nav-link" href="#slide-11"><span class="slide-num">11</span> 关键因素: CPC</a>
+    <a class="nav-link" href="#slide-12"><span class="slide-num">12</span> 关键因素: CVR</a>
+    <a class="nav-link" href="#slide-13"><span class="slide-num">13</span> 关键因素: 平均售价</a>
+  </div>
+
+  <!-- Section 2 -->
+  <div class="nav-section">
+    <div class="nav-section-title"><span class="num">2</span> 前置准备</div>
+    <a class="nav-link" href="#slide-14"><span class="slide-num">14</span> 章节封面</a>
+    <a class="nav-link" href="#slide-15"><span class="slide-num">15</span> A10 算法因素</a>
+    <a class="nav-link" href="#slide-16"><span class="slide-num">16</span> Keywords 关键词</a>
+    <a class="nav-link" href="#slide-17"><span class="slide-num">17</span> Product Title 标题</a>
+    <a class="nav-link" href="#slide-18"><span class="slide-num">18</span> Product Images 图片</a>
+    <a class="nav-link" href="#slide-19"><span class="slide-num">19</span> Bullet Points 卖点</a>
+    <a class="nav-link" href="#slide-20"><span class="slide-num">20</span> Description &amp; A+</a>
+    <a class="nav-link" href="#slide-21"><span class="slide-num">21</span> Search Term 设置</a>
+    <a class="nav-link" href="#slide-22"><span class="slide-num">22</span> Reviews &amp; Checklist</a>
+  </div>
+
+  <!-- Section 3 -->
+  <div class="nav-section">
+    <div class="nav-section-title"><span class="num">3</span> 广告策略</div>
+    <a class="nav-link" href="#slide-23"><span class="slide-num">23</span> 章节封面</a>
+    <a class="nav-link" href="#slide-24"><span class="slide-num">24</span> PPC 推广效果</a>
+    <a class="nav-link" href="#slide-25"><span class="slide-num">25</span> 自动 vs 手动广告</a>
+    <a class="nav-link" href="#slide-26"><span class="slide-num">26</span> 产品组合管理</a>
+    <a class="nav-link" href="#slide-27"><span class="slide-num">27</span> 关键词调研</a>
+    <a class="nav-link" href="#slide-28"><span class="slide-num">28</span> 广告目标设定</a>
+    <a class="nav-link" href="#slide-29"><span class="slide-num">29</span> 广告结构设计</a>
+    <a class="nav-link" href="#slide-30"><span class="slide-num">30</span> Campaign: Auto</a>
+    <a class="nav-link" href="#slide-31"><span class="slide-num">31</span> Campaign: Broad</a>
+    <a class="nav-link" href="#slide-32"><span class="slide-num">32</span> Campaign: Exact/ASIN</a>
+    <a class="nav-link" href="#slide-33"><span class="slide-num">33</span> Campaign: Category</a>
+    <a class="nav-link" href="#slide-34"><span class="slide-num">34</span> 匹配类型详解</a>
+    <a class="nav-link" href="#slide-35"><span class="slide-num">35</span> 效果评估 &amp; 否定词</a>
+    <a class="nav-link" href="#slide-36"><span class="slide-num">36</span> 出价优化</a>
+    <a class="nav-link" href="#slide-37"><span class="slide-num">37</span> 动态出价策略</a>
+    <a class="nav-link" href="#slide-38"><span class="slide-num">38</span> 按位置调整出价</a>
+    <a class="nav-link" href="#slide-39"><span class="slide-num">39</span> Bid 试算</a>
+    <a class="nav-link" href="#slide-40"><span class="slide-num">40</span> 预算分配</a>
+    <a class="nav-link" href="#slide-41"><span class="slide-num">41</span> 总结</a>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="main" id="mainContent">
+
+  <!-- =============== SECTION 1: 基础概念 =============== -->
+  <div class="section-header" id="section-basics">
+    <h2>
+      基础概念
+      <span class="badge">Slides 4-13</span>
+    </h2>
+    <div class="section-desc">eCommerce 底层逻辑、广告框架、ACoS/RoAS/TACoS 指标体系、盈亏平衡与关键驱动因素</div>
+  </div>
+
+  <!-- Slide 4 -->
+  <div class="slide-card" id="slide-4">
+    <div class="slide-card-header">
+      <span class="slide-idx">04</span>
+      <h3>eCommerce 底层逻辑</h3>
+      <span class="category-tag">基础概念</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_04.jpg" alt="Slide 04" data-slide="4" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">整体GMV = 推广GMV (20~40%) + 自然GMV (60~80%)
+
+推广GMV = 广告流量 x 转化率 x 客单价
+自然GMV = 自然流量 x 转化率 x 客单价
+
+自然排名 / 广告推广 -- 流量: 市场+需求 -- 转化: 产品</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 5 -->
+  <div class="slide-card" id="slide-5">
+    <div class="slide-card-header">
+      <span class="slide-idx">05</span>
+      <h3>广告框架 PPC &amp; DSP</h3>
+      <span class="category-tag">基础概念</span>
+    </div>
+    <div class="slide-card-body image-only">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_05.jpg" alt="Slide 05 - PPC (SP/SB/SD) & DSP 广告框架" data-slide="5" loading="lazy">
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 6 -->
+  <div class="slide-card" id="slide-6">
+    <div class="slide-card-header">
+      <span class="slide-idx">06</span>
+      <h3>ACoS 广告成本销售比 &amp; RoAS 广告支出回报</h3>
+      <span class="category-tag">基础概念</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_06.jpg" alt="Slide 06" data-slide="6" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>ACOS</strong> = 广告支出 / 销售额
+例如: 广告花费 $20, 带来 $100 销售额, ACOS = 20%
+
+<strong>ROAS</strong> = 销售额 / 广告支出
+例如: 广告花费 $20, 带来 $100 销售额, ROAS = 5
+
+ACOS/ROAS 达到多少比较好? 没有统一标准, 取决于类目竞争程度、广告目标、绩效以及产品成本结构等。</div>
+        <div class="body-text">ACoAS = 广告花费 / 总销售额 * 100% (Advertising Cost of All Sales)
+ASoAS = 广告销售额 / 总销售额 * 100% (Advertising Sales of All Sales)
+转化率 = 广告订单量 / 点击量 * 100%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 7 -->
+  <div class="slide-card" id="slide-7">
+    <div class="slide-card-header">
+      <span class="slide-idx">07</span>
+      <h3>盈亏平衡 Break-Even ACoS = Profit Margin</h3>
+      <span class="category-tag">广告控管的核心</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_07.jpg" alt="Slide 07" data-slide="7" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Target ACoS</strong> = Profit Margin (Before Advertising) - Target Profit Margin (After Advertising)
+
+广告中最重要的KPI: 获利能力
+
+<strong>目标1: 销售额最大化</strong> -- 推新产品时, 希望实现盈亏平衡ACoS, 不亏钱的前提下最大化销售额
+<strong>目标2: 曝光量最大化</strong> -- 适合有实力的品牌大卖家, 用于品牌长期建设
+<strong>目标3: 广告盈利</strong> -- ACoS 必须小于损益平衡ACoS
+
+损益平衡ACoS 是零利润=零亏损的起点。如果 ACoS 低于盈亏平衡ACoS, 说明广告正在获利(反之亦然)。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 8 -->
+  <div class="slide-card" id="slide-8">
+    <div class="slide-card-header">
+      <span class="slide-idx">08</span>
+      <h3>驱动 ACOS 的因素</h3>
+      <span class="category-tag">基础概念</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_08.jpg" alt="Slide 08" data-slide="8" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>主要指标:</strong>
+
+<strong>Bid 竞价</strong>: 出价赢得广告竞标则产品出现在排名第一的位置
+<strong>Impressions 曝光</strong>: 看到广告的人越多, 购买机会越高
+<strong>Click-through rate 点击率</strong>: 点击次数/展示次数, 衡量广告的趣味性/相关性
+<strong>Cost per click 点击单价</strong>: 每次点击支付的费用, CPC 取决于出价、竞争和 Listing 质量得分
+<strong>Conversion rate 转化率</strong>: 订单/点击量, 衡量产品详细页面的说服力
+<strong>Ad spend 广告支出</strong>: 点击量 x 每次点击成本
+<strong>Ad revenue 广告收入</strong>: 广告订单 x 平均售价</div>
+        <div class="body-text subtitle">广告因素的分解 -- 互相制约影响</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 9 -->
+  <div class="slide-card" id="slide-9">
+    <div class="slide-card-header">
+      <span class="slide-idx">09</span>
+      <h3>Total ACoS (TACoS) 整体产出</h3>
+      <span class="category-tag">基础概念</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_09.jpg" alt="Slide 09" data-slide="9" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>TACOS 使用场景:</strong>
+- 了解整体盈利能力
+- 监测账户或特定产品对广告的依赖性
+- 分析广告销售对自然销售的影响
+
+<strong>投入广告的策划:</strong> 推出新产品、季节性活动(如圣诞节)、激发销售增长
+
+<strong>销售正循环:</strong> 广告支出增加 -> ACoS 和 TACoS 短期增长 -> ACoS 稳定后 TACoS 开始下降, 说明已触发更多自然销售的积极循环。
+
+当广告销售增加提高了自然排名(和评论数量), 驱动更多的自然销售, 就会出现积极的销售周期。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 10 -->
+  <div class="slide-card" id="slide-10">
+    <div class="slide-card-header">
+      <span class="slide-idx">10</span>
+      <h3>ACOS 关键因素 #1: Click-Through Rate</h3>
+      <span class="category-tag">点击转化</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_10.jpg" alt="Slide 10" data-slide="10" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">观察点击率与同类竞品的比较, 是否有潜力使产品广告(图片、文案、评论等)对客户更有吸引力。
+
+- 广告是否能够从人群中脱颖而出, 说服客户进一步了解产品
+- 目标受众是否太窄或太广
+- 细化营销活动的目标, 进行亚马逊关键词研究
+- 使用否定关键词防止广告被显示在不相关的搜索中
+- 优化产品图片, 确保它们从人群中脱颖而出
+- 通过密切监测评论, 提高星级评价</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 11 -->
+  <div class="slide-card" id="slide-11">
+    <div class="slide-card-header">
+      <span class="slide-idx">11</span>
+      <h3>ACOS 关键因素 #2: Cost Per Click (CPC)</h3>
+      <span class="category-tag">点击单价成本</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_11.jpg" alt="Slide 11" data-slide="11" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">每次点击成本在不同的市场和产品类别中差异很大。
+
+- CPC 高于基准值: 可能为广告支付了过多的费用
+- CPC 低于基准值: 出价可能没有竞争力, 错过有价值的曝光和销售
+- 例外: 产品发布期或最大化曝光/销售时, CPC 高于基准是合理的
+
+<strong>CPC 取决于:</strong> 出价、竞争和质量分数
+<strong>优化逻辑:</strong> ACoS &lt; 目标 -> 增加 CPC; ACoS &gt; 目标 -> 减少 CPC
+
+最佳实践策略遵循逻辑规则, 可以被自动化。通过使用工具管理竞价优化节省时间和精力。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 12 -->
+  <div class="slide-card" id="slide-12">
+    <div class="slide-card-header">
+      <span class="slide-idx">12</span>
+      <h3>ACOS 关键因素 #3: Conversion Rate (CVR)</h3>
+      <span class="category-tag">广告转化</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_12.jpg" alt="Slide 12" data-slide="12" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">如果 CVR 上升, 亚马逊 ACoS 就会下降(反之亦然)。
+
+CVR 更依赖于产品详情页。当购物者点击广告后, 产品详情页需要说服购物者购买。
+
+<strong>提升方法:</strong>
+- 优化产品内容: 图片、标题、要点、描述、A+内容、视频
+- 管理产品评论和问题
+- A/B 测试价格
+- 通过评论和问题工具主动管理客户反馈
+- 帮助客户更好了解产品, 提高转化率, 减少退货</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 13 -->
+  <div class="slide-card" id="slide-13">
+    <div class="slide-card-header">
+      <span class="slide-idx">13</span>
+      <h3>ACOS 关键因素 #4: Average Sales Price</h3>
+      <span class="category-tag">产品定价策略</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_13.jpg" alt="Slide 13" data-slide="13" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">影响平均销售价格的三个最重要因素:
+1. 买方愿意支付的价格
+2. 卖方愿意接受的价格
+3. 在市场上有竞争力的价格
+
+<strong>定价策略:</strong>
+- <strong>Dynamic Pricing</strong>: 基于市场条件和供求关系动态调整, 价格可能每隔几分钟改变
+- <strong>低价策略</strong>: 以最便宜的价格从竞争中脱颖而出, 但可能影响质量认知
+- <strong>高价策略</strong>: 取决于品牌声誉, 吸引追求最佳质量的买家
+- <strong>基于竞争者定价</strong>: 基于竞争对手的价格并与之匹配
+
+确定售价前, 考虑所有产品销售成本, 确保处于有利可图的范围。</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- =============== SECTION 2: 前置准备 =============== -->
+  <div class="section-header" id="section-prep">
+    <h2>
+      前置准备
+      <span class="badge">Slides 14-22</span>
+    </h2>
+    <div class="section-desc">A10 算法核心因素、Listing Ready 七要素: Keywords, Title, Images, Bullet Points, Description & A+, Search Terms, Reviews</div>
+  </div>
+
+  <!-- Slide 14 -->
+  <div class="slide-card" id="slide-14">
+    <div class="slide-card-header">
+      <span class="slide-idx">14</span>
+      <h3>前置准备 - Amazon Advertising</h3>
+      <span class="category-tag">章节封面</span>
+    </div>
+    <div class="slide-card-body image-only">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_14.jpg" alt="Slide 14 - 前置准备章节封面" data-slide="14" loading="lazy">
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 15 -->
+  <div class="slide-card" id="slide-15">
+    <div class="slide-card-header">
+      <span class="slide-idx">15</span>
+      <h3>Amazon A10 算法因素</h3>
+      <span class="category-tag">平台A10算法 核心目标</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_15.jpg" alt="Slide 15" data-slide="15" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>PPC 维持相关性:</strong> PPC 活动表现仍然是重要权重, 但权重已大程度降低。使广告预算多样化, 扩大其他方面如亚马逊以外的广告。
+
+<strong>销量历史:</strong> A10 算法对产品销售历史数据计算权重影响。
+
+<strong>自然销量:</strong> 从亚马逊网站的自然排名结果中产生的销售是影响 A10 算法的关键因素。
+
+<strong>卖家公信力:</strong> 反馈评级、销售时间长度、退货处理程度等卖家指标因素。
+
+<strong>展示量/点击率/站外销售:</strong>
+- 增加展示量(站内/合作伙伴网站/联盟计划), 推动自然排名提升
+- 引人注目的产品图片和标题对于提高点击率很重要
+- A10 算法的最新条目: 站外销售, 推动外部流量比 PPC 效果更显著</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 16 -->
+  <div class="slide-card" id="slide-16">
+    <div class="slide-card-header">
+      <span class="slide-idx">16</span>
+      <h3>Listing Ready #1: Keywords 关键词</h3>
+      <span class="category-tag">产品关键词规划</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_16.jpg" alt="Slide 16" data-slide="16" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">关键词决定了亚马逊 Listing 优化效果的成败。近 70% 的亚马逊购物者从未离开过搜索结果的第一页, 前三页的 Listing 占据所有点击量的 64%。
+
+算法使用页面提供的信息, 将客户的搜索词与 Listing 相匹配。必须挖掘高搜索量、具有强相关性的关键词。
+
+<strong>长尾关键词:</strong> 针对有更大购买意图的购物者, 通常更容易获得排名, PPC 中每次点击成本更低。
+<strong>短尾关键词:</strong> 更难获得排名, 但购物者高度使用。
+
+不要假设知道客户会使用什么关键词, 做充分的分析研究。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 17 -->
+  <div class="slide-card" id="slide-17">
+    <div class="slide-card-header">
+      <span class="slide-idx">17</span>
+      <h3>Listing Ready #2: Product Title 标题</h3>
+      <span class="category-tag">产品页面基本要素</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_17.jpg" alt="Slide 17" data-slide="17" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">产品标题对于吸引购物者注意力和提高点击率至关重要。
+
+- 最大限制 200 字符, 但最好限制在 60~80 字符
+- 33% 的顶级列表属于这个甜蜜点
+- 亚马逊截断超过 112 个字符的产品标题
+- 标题中的每一个字都是可搜索的, 对 Listing 优化具有最大权重
+
+<strong>标题结构示例:</strong>
+Brand + Product line + Product type + Style + Color + Features
+
+创建标题时, 提供足够信息鼓励客户探索产品页面, 但记住要纳入产品的主要关键词。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 18 -->
+  <div class="slide-card" id="slide-18">
+    <div class="slide-card-header">
+      <span class="slide-idx">18</span>
+      <h3>Listing Ready #3: Product Images 图片</h3>
+      <span class="category-tag">产品图片 功能 场景展示</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_18.jpg" alt="Slide 18" data-slide="18" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">亚马逊允许最多 9 张产品图片(含一张主图)。排名前 62% 的亚马逊 Listing 有 5~8 张图片。
+
+<strong>图片要求:</strong>
+- 尺寸/颜色等与产品描述相符
+- 产品可识别、重点突出、光线充足
+- 有利角度拍摄, 产品占图片面积 85%
+- 背景简单干净(最好纯白色)
+
+<strong>最佳实践:</strong>
+- 加入产品视频, 娱乐和吸引潜在客户
+- 使用信息图表、生活方式照片展示差异化优势
+- 包括尺寸参照背景, 说明产品实际规模
+- 强调产品特定元素, 解释为什么每一个元素都很重要</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 19 -->
+  <div class="slide-card" id="slide-19">
+    <div class="slide-card-header">
+      <span class="slide-idx">19</span>
+      <h3>Listing Ready #4: Bullet Points 卖点</h3>
+      <span class="category-tag">产品核心卖点提炼</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_19.jpg" alt="Slide 19" data-slide="19" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">Bullet Points 对于那些略过产品页面并希望快速获得信息的购物者来说非常有用, 简明扼要地强调产品好处。
+
+<strong>编写建议:</strong>
+- 从头脑风暴开始, 想想顾客用产品能做什么, 能解决什么问题
+- 将特征转化为好处: 例如 "适合小空间的双炉烤炉" -> "大到可以为全家人烤汉堡, 又如此紧凑, 适合任何地方"
+- 保持简短、直截了当, 总长度不超过 1000 个字符
+- 少于 1000 字符也能提高可发现性(亚马逊算法索引)
+- 尽量减少关键词堆砌, 主要目标是帮助购物者做出决定</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 20 -->
+  <div class="slide-card" id="slide-20">
+    <div class="slide-card-header">
+      <span class="slide-idx">20</span>
+      <h3>Listing Ready #5: Product Description &amp; A+</h3>
+      <span class="category-tag">产品描述 A+</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_20.jpg" alt="Slide 20" data-slide="20" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">51% 的排名靠前的 Listing 使用了约 400 个字符。产品描述越长效果越差(收益递减)。建议保持在 400 字符以下或 1100 以上。
+
+<strong>A+ 内容:</strong> 为品牌 ASIN 完全定制产品描述, 可添加增强图片、视频或文字。使用 A+ 内容的品牌(如 WHOOSH)销售量增加了 170%。
+
+<strong>产品描述要点:</strong>
+- 包括额外好处和功能, 充分解释为什么有人应该购买
+- 撰写引人注目的营销文案, 帮助人们设想在现实生活中使用产品
+- 展示效果证明, 添加行业专家或影响者的优秀评论</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 21 -->
+  <div class="slide-card" id="slide-21">
+    <div class="slide-card-header">
+      <span class="slide-idx">21</span>
+      <h3>Listing Ready #6: Search Term Fields</h3>
+      <span class="category-tag">产品 Search Term 设置</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_21.jpg" alt="Slide 21" data-slide="21" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Search Terms 最佳实践:</strong>
+- Stay under length limit
+- Include synonyms, spelling variations (no need for misspellings)
+- Include abbreviations and alternate names
+- Use all lower case, separate words with spaces
+- Don't repeat words, no need for stop words (a, an, and, by, for...)
+- Use singular or plural, no need for both
+
+<strong>禁止使用:</strong>
+- 自有品牌或其他品牌名
+- ASINs
+- 临时性声明如 "new", "on sale now"
+- 主观声明如 "best", "cheapest", "amazing"
+- 滥用或冒犯性术语
+
+违反规则可能导致 ASIN 被压制和账户处罚。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 22 -->
+  <div class="slide-card" id="slide-22">
+    <div class="slide-card-header">
+      <span class="slide-idx">22</span>
+      <h3>Listing Ready #7: Customer Reviews &amp; Checklist</h3>
+      <span class="category-tag">产品 Review 基数 复查 checklist</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_22.jpg" alt="Slide 22" data-slide="22" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>#7 Customer Reviews:</strong>
+客户评论是网上销售的必备条件。经过验证的客户正面评论可以帮助消除意向客户对产品质量的怀疑, 证明产品价值。
+
+<strong>#8 Product Offering:</strong>
+- 提供客服支持, 在产品描述中添加公司联系信息
+- 设定质量保证承诺 (保修期)
+- 回答客户的问题, 建立信任, 帮助他们对决定更有信心
+
+复查 Checklist, 确保前置准备完成!</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- =============== SECTION 3: 广告策略 =============== -->
+  <div class="section-header" id="section-strategy">
+    <h2>
+      广告策略
+      <span class="badge">Slides 23-41</span>
+    </h2>
+    <div class="section-desc">PPC 策略全流程: 自动/手动广告、关键词调研、目标设定、Campaign 结构、匹配类型、出价优化、预算分配</div>
+  </div>
+
+  <!-- Slide 23 -->
+  <div class="slide-card" id="slide-23">
+    <div class="slide-card-header">
+      <span class="slide-idx">23</span>
+      <h3>广告策略 - Amazon Advertising</h3>
+      <span class="category-tag">章节封面</span>
+    </div>
+    <div class="slide-card-body image-only">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_23.jpg" alt="Slide 23 - 广告策略章节封面" data-slide="23" loading="lazy">
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 24 -->
+  <div class="slide-card" id="slide-24">
+    <div class="slide-card-header">
+      <span class="slide-idx">24</span>
+      <h3>PPC 推广效果</h3>
+      <span class="category-tag">策略概述 推广效果差异</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_24.jpg" alt="Slide 24" data-slide="24" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">根据 Sellics 研究:
+- 表现优异的 <strong>RoAS 中位数为 323%</strong>
+- 表现最好的 20% 广告 <strong>RoAS 约为 532%</strong> (超过 5 倍)
+- 最差和最好的广告表现之间的差异接近 <strong>3 倍</strong>
+
+不是所有广告产出是均衡的。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 25 -->
+  <div class="slide-card" id="slide-25">
+    <div class="slide-card-header">
+      <span class="slide-idx">25</span>
+      <h3>自动 vs 手动 PPC 广告</h3>
+      <span class="category-tag">概述自动 手动 差异</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_25.jpg" alt="Slide 25" data-slide="25" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>自动广告 (Automatic):</strong>
+创建比较容易, 只需命名广告活动(和广告组)并定义预算和 CPC 出价。一旦活动启动, 亚马逊自动在选定的搜索词中显示广告。
+
+<strong>手动广告 (Manual):</strong>
+将自动广告系列中表现最好的搜索词(关键词和 ASIN)转移到手动广告系列中, 以便能够进行精确优化。
+
+活动类型的差异在亚马逊 PPC 战略中起着至关重要的作用。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 26 -->
+  <div class="slide-card" id="slide-26">
+    <div class="slide-card-header">
+      <span class="slide-idx">26</span>
+      <h3>产品组合管理 (Group Products)</h3>
+      <span class="category-tag">广告 Group 管理 控制</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_26.jpg" alt="Slide 26" data-slide="26" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>简单来说, 尽量不要组合!</strong>
+
+创建活动和广告组 -- 基于 ASIN。为每个 ASIN 创建一个设置, 将对产品有最多的控制:
+- 目标定位
+- 亚马逊 CPCs
+- 预算
+
+<strong>案例:</strong> 鳄梨形浮球和甜甜圈形浮球虽然有很多共同之处, 但它们不能互换 -- 搜索词不同, CPC 竞争程度不同, 利润率有差别, 无法精确校准 PPC 活动的利润率(或 ACoS)。
+
+不应该在为甜甜圈付费的广告位放上一个鳄梨(相关性存疑)。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 27 -->
+  <div class="slide-card" id="slide-27">
+    <div class="slide-card-header">
+      <span class="slide-idx">27</span>
+      <h3>关键词调研 (Keyword Research)</h3>
+      <span class="category-tag">广告关键词调研</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_27.jpg" alt="Slide 27" data-slide="27" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text">研究产品的所有相关关键词 -- 客户在亚马逊上搜索产品时使用的搜索词。
+
+<strong>需要考虑的因素:</strong>
+- <strong>搜索量:</strong> 评估关键词的受欢迎程度, 越多人搜索, 访客数量就越多
+- <strong>搜索量趋势:</strong> 搜索量随时间变化, 特别注意季节性关键词
+- <strong>竞争度:</strong> 高搜索量关键词竞争程度如何, 评估获得排名和广告位的难度
+
+<strong>如何获取关键词:</strong>
+- 个人经验 (Personal Experience)
+- 亚马逊自动填充功能 (Auto-Complete Feature)
+- 反查竞争对手产品 (Analyze Competitor's Listings)
+- 各类关键词工具</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 28 -->
+  <div class="slide-card" id="slide-28">
+    <div class="slide-card-header">
+      <span class="slide-idx">28</span>
+      <h3>广告目标设定 (PPC Clear Goal)</h3>
+      <span class="category-tag">广告策略目标</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_28.jpg" alt="Slide 28" data-slide="28" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>A: 最大化销售额</strong>
+短期可牺牲利润为代价, 优先考虑销售而不是利润。
+收支相抵的 ACoS = 广告支出前的利润率 (Break-even ACoS = profit margin before ad spend)
+适合推出新产品初期, 启动良性循环, 促进未来更多销售和利润。
+
+<strong>B: 创造利润</strong>
+从广告销售实现盈利, 广告支出不能等于或超过广告销售回报。
+目标 ACoS = 广告支出前的利润率 - 广告支出后的目标利润率 (Target ACoS = profit margin before ad spend - target profit margin after ad spend)
+
+从售价中扣除所有相关成本(制造、运输、亚马逊费用、运营成本等)后, 准确计算产品实际的利润率。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 29 -->
+  <div class="slide-card" id="slide-29">
+    <div class="slide-card-header">
+      <span class="slide-idx">29</span>
+      <h3>广告结构设计 (Defining PPC Structure)</h3>
+      <span class="category-tag">广告结构策略 平衡精度与工作量</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_29.jpg" alt="Slide 29" data-slide="29" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>平衡效率与精度:</strong>
+在尽可能少的工作量下实现最精确和高效; 控制产品广告, 同时又不完全占据日常工作。
+
+固化 PPC 结构, 灵活适应目标。
+
+结合各类型 campaign 的优点和匹配类型发挥作用:
+- <strong>自动 campaign:</strong> 容易设置, 广泛影响力, 但可能浪费预算(缺乏精确度)
+- <strong>手动 campaign:</strong> 具有创建更有效活动所需的精确性, 但工作量大
+
+在 campaign 结构中, 每个 campaign 和 ad group 各自有其功能。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 30 -->
+  <div class="slide-card" id="slide-30">
+    <div class="slide-card-header">
+      <span class="slide-idx">30</span>
+      <h3>Campaign 设定: Automatic</h3>
+      <span class="category-tag">广告设定 Automatic</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_30.jpg" alt="Slide 30" data-slide="30" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Automatic (research) campaign</strong>
+
+亚马逊算法将对哪些关键词和 ASIN 适合产品做出最佳猜测。这些匹配是宝贵的资源, 因为亚马逊对相关性的判断将基于购物行为。
+
+(把搜索变成销售也符合亚马逊的利益)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 31 -->
+  <div class="slide-card" id="slide-31">
+    <div class="slide-card-header">
+      <span class="slide-idx">31</span>
+      <h3>Campaign 设定: Manual Broad</h3>
+      <span class="category-tag">广告设定 Manual, broad</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_31.jpg" alt="Slide 31" data-slide="31" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Manual campaign (broad, exact and ASIN targeting)</strong>
+
+Manual broad match ad group settings -- 广泛匹配广告组设置, 用于关键词发现和扩展覆盖范围。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 32 -->
+  <div class="slide-card" id="slide-32">
+    <div class="slide-card-header">
+      <span class="slide-idx">32</span>
+      <h3>Campaign 设定: Manual Exact &amp; ASIN</h3>
+      <span class="category-tag">广告设定 Manual, exact, ASIN</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_32.jpg" alt="Slide 32" data-slide="32" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Manual exact match ad group settings</strong> -- 精确匹配广告组, 以性能为重点。
+
+<strong>Manual ASIN ad group settings</strong> -- ASIN 定位广告组, 针对特定竞品进行投放。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 33 -->
+  <div class="slide-card" id="slide-33">
+    <div class="slide-card-header">
+      <span class="slide-idx">33</span>
+      <h3>Campaign 设定: Category Targeting</h3>
+      <span class="category-tag">广告设定 Manual, Category</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_33.jpg" alt="Slide 33" data-slide="33" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Manual campaign (category targeting)</strong>
+
+Category 广告组本质上是广泛匹配广告组的 ASIN 版, 既为了提高展示量, 也为了完善目标, 以提供给精确匹配(ASIN)广告。
+
+Category 广告活动让产品品牌在相关类别中以更大的规模 "出现"。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 34 -->
+  <div class="slide-card" id="slide-34">
+    <div class="slide-card-header">
+      <span class="slide-idx">34</span>
+      <h3>匹配类型详解 (Match Types)</h3>
+      <span class="category-tag">广告关键词匹配类型的重要特征</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_34.jpg" alt="Slide 34" data-slide="34" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Broad match (广泛匹配):</strong>
+广泛匹配使关键词变得灵活, 在关键词研究中非常有用, 特别是发现长尾关键词。长尾关键词降低 CPC 成本, 同时增加转化可能性。
+
+<strong>Exact match (完全匹配):</strong>
+完全匹配关键词 -- 按照顺序, 没有额外搜索词。创建更精确的以性能为重点的广告组。不必担心在不相关的排列组合上浪费广告支出。
+
+<strong>Phrase match (短语匹配):</strong>
+允许在关键词之前或之后添加搜索词, 但不能在两者之间。在广泛和精确之间的 "理想平衡", 但对于关键词研究太窄, 对于精细活动又太宽。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 35 -->
+  <div class="slide-card" id="slide-35">
+    <div class="slide-card-header">
+      <span class="slide-idx">35</span>
+      <h3>效果评估 &amp; 否定关键词</h3>
+      <span class="category-tag">广告效果评估</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_35.jpg" alt="Slide 35" data-slide="35" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>如何评估目标(关键词和 ASINs)变得"好"或有价值?</strong>
+
+什么才算表现好, 取决于设定的目标。把目标看成是评估目标和活动效果的一个滤镜。
+
+<strong>为 PPC 广告组添加否定关键字至关重要:</strong>
+- 把已经有明确目标的现存关键词添加为否定词组匹配
+- 让自动广告活动继续寻找新的可能性
+- 亚马逊算法更喜欢已知的目标, 如果在自动广告活动中留下这些关键词, 它将窃取流量
+- 无法充分利用自动广告活动的发现功能</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 36 -->
+  <div class="slide-card" id="slide-36">
+    <div class="slide-card-header">
+      <span class="slide-idx">36</span>
+      <h3>出价优化 (Bid Optimization)</h3>
+      <span class="category-tag">广告 Bid 出价优化</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_36.jpg" alt="Slide 36" data-slide="36" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Bid Optimization 三原则:</strong>
+
+<strong>1. 不要太激进:</strong> 以 20%~30% 的增量来测试出价调整, 产生更精确的结果, 帮助更准确地调到最佳出价。
+
+<strong>2. 要有耐心:</strong> 在调整出价之前收集足够的点击量, 确保已经收集了足够的数据来做出决定。
+
+<strong>3. 保持灵活:</strong> CPCs 会发生变化! 影响出价的其他因素(如转换率、点击率, 甚至产品成本)也会发生变化。这是一项永远不会完成的工作。
+
+最终目标: 将出价优化根据总结积累的算法策略, 自动进行出价调整。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 37 -->
+  <div class="slide-card" id="slide-37">
+    <div class="slide-card-header">
+      <span class="slide-idx">37</span>
+      <h3>动态出价策略 (Dynamic Bidding)</h3>
+      <span class="category-tag">广告 Bid, 动态出价设置</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_37.jpg" alt="Slide 37" data-slide="37" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Down Only (Amazon default):</strong>
+自动降低出价以减少浪费。如果点击转化率较低, 出价自动降低, 最高可达 100%。
+
+<strong>Up and Down:</strong>
+自动增价抓住新的销售机会。点击有可能转化时, 亚马逊将搜索结果第一页顶部出价提高到 100%(双倍), 其他位置提高到 50%。
+
+<strong>Fixed Bids:</strong>
+动态出价被停用, 出价保持不变。当计划持续投入广告支出将销售额或展示数最大化时使用。
+
+<strong>Adjust Bids by Placement:</strong>
+可选择增加出价(按位置, 1%~900%), 用于搜索页顶部或产品页面。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 38 -->
+  <div class="slide-card" id="slide-38">
+    <div class="slide-card-header">
+      <span class="slide-idx">38</span>
+      <h3>按位置调整出价 (Adjust Bids by Placement)</h3>
+      <span class="category-tag">广告 Bid 出价基于位置试算</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_38.jpg" alt="Slide 38" data-slide="38" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>Adjust Amazon Bids by Placement</strong>
+
+Placement Multipliers + Campaign Bidding -- 位置乘数与 Campaign 出价的组合策略。
+
+<strong>Top of Search:</strong> 搜索结果顶部位置的出价调整
+<strong>Product Pages:</strong> 产品页面位置的出价调整</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 39 -->
+  <div class="slide-card" id="slide-39">
+    <div class="slide-card-header">
+      <span class="slide-idx">39</span>
+      <h3>Bid 试算</h3>
+      <span class="category-tag">基于 CPC 计划成本, 进行 Bid 定价试算</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_39.jpg" alt="Slide 39" data-slide="39" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>如何估算默认出价 (How much my default Amazon bid should be?)</strong>
+
+<strong>Step 1: 确定愿意支付的最高 CPC 成本</strong>
+
+预设条件:
+- Product price: $333
+- Profit margin: 25%
+- Conversion rate (Top of Search): 10%
+- Target ACoS: 15%
+
+计算过程:
+1. 每笔广告成交可花费的广告预算 = $333 x 0.15 = <strong>$50</strong>
+2. 平均需要多少次点击可成交一单 = 100 / 10 = <strong>10 clicks</strong>
+3. 最高单次 CPC = $50 / 10 = <strong>$5 CPC max</strong>
+
+并不是所有点击都会花费 $5。从这个默认出价开始, 调整出价或位置调整, 直到有最多点击及销售, 且同时保持在目标 ACoS 范围内。
+
+<strong>Step 2:</strong> 基于单次最高 CPC 推算相应亚马逊 default bid。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 40 -->
+  <div class="slide-card" id="slide-40">
+    <div class="slide-card-header">
+      <span class="slide-idx">40</span>
+      <h3>预算分配 (Budget Allocation &amp; Portfolios)</h3>
+      <span class="category-tag">广告结构化设定, 管理</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_40.jpg" alt="Slide 40" data-slide="40" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text"><strong>预算分配和组合 (Budget Allocation and Portfolios)</strong>
+
+对于管理店铺内部不同品牌或不同产品线很有帮助。
+
+<strong>主要好处:</strong> 使活动集群彼此不同, 根据每个指定的组合分组, 分别进行更改和分析。
+
+可以实现更大程度的控制, 在账户级和活动级进行修改。
+
+<strong>组合可单独管理:</strong>
+- 预算和支出
+- 营销策略
+- 业绩指标</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 41 -->
+  <div class="slide-card" id="slide-41">
+    <div class="slide-card-header">
+      <span class="slide-idx">41</span>
+      <h3>总结: 持续精进!</h3>
+      <span class="category-tag">广告策略</span>
+    </div>
+    <div class="slide-card-body">
+      <div class="slide-thumb-wrap">
+        <img class="slide-thumb" src="slides/slide_41.jpg" alt="Slide 41" data-slide="41" loading="lazy">
+      </div>
+      <div class="slide-content">
+        <div class="body-text" style="font-size:16px; font-weight:500; color: var(--text);">设定广告策略目标, 结构化广告组, 优化广告目标及出价, 持续提升表现基准。</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose" aria-label="Close">&times;</button>
+  <button class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Previous">&#8249;</button>
+  <button class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Next">&#8250;</button>
+  <img src="" alt="" id="lightboxImg">
+  <div class="lightbox-caption" id="lightboxCaption"></div>
+</div>
+
+<!-- BACK TO TOP -->
+<button class="back-to-top" id="backToTop" aria-label="Back to top">
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="4,11 9,6 14,11"/>
+  </svg>
+</button>
+
+<script>
+(function() {
+  'use strict';
+
+  // ===== SIDEBAR TOGGLE (mobile) =====
+  const menuToggle = document.getElementById('menuToggle');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+  }
+
+  menuToggle.addEventListener('click', () => {
+    const isOpen = sidebar.classList.toggle('open');
+    overlay.classList.toggle('open', isOpen);
+  });
+  overlay.addEventListener('click', closeSidebar);
+
+  // Close sidebar on nav link click (mobile)
+  sidebar.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth <= 768) closeSidebar();
+    });
+  });
+
+  // ===== ACTIVE NAV LINK (scroll spy) =====
+  const navLinks = document.querySelectorAll('.nav-link');
+  const slideCards = document.querySelectorAll('.slide-card[id]');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(l => l.classList.remove('active'));
+        const activeLink = sidebar.querySelector(`a[href="#${id}"]`);
+        if (activeLink) {
+          activeLink.classList.add('active');
+          // Scroll sidebar to keep active link visible
+          activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+    });
+  }, { rootMargin: '-20% 0px -60% 0px', threshold: 0 });
+
+  slideCards.forEach(card => observer.observe(card));
+
+  // ===== REPLACE THUMBNAILS WITH HIGH-RES IMAGES =====
+  const hiresMap = {"4":["slide_04_img1.png"],"6":["slide_06_img1.png","slide_06_img2.png","slide_06_img3.png"],"7":["slide_07_img1.png","slide_07_img2.png","slide_07_img3.png","slide_07_img4.png"],"8":["slide_08_img1.png","slide_08_img2.png","slide_08_img3.png","slide_08_img4.png"],"9":["slide_09_img1.png","slide_09_img2.png","slide_09_img3.png","slide_09_img4.png","slide_09_img5.png","slide_09_img6.png"],"10":["slide_10_img1.png","slide_10_img2.png","slide_10_img3.png","slide_10_img4.png","slide_10_img5.png","slide_10_img6.png"],"11":["slide_11_img1.png","slide_11_img2.png","slide_11_img3.png","slide_11_img4.png"],"12":["slide_12_img1.png","slide_12_img2.png","slide_12_img3.png","slide_12_img4.png","slide_12_img5.png"],"13":["slide_13_img1.png","slide_13_img2.png","slide_13_img3.png"],"15":["slide_15_img1.png","slide_15_img2.png"],"16":["slide_16_img1.png","slide_16_img2.png"],"17":["slide_17_img1.png","slide_17_img2.png","slide_17_img3.png","slide_17_img4.png"],"18":["slide_18_img1.png","slide_18_img2.png","slide_18_img3.png"],"19":["slide_19_img1.png"],"20":["slide_20_img1.png","slide_20_img2.png","slide_20_img3.png"],"21":["slide_21_img1.png","slide_21_img2.png"],"22":["slide_22_img1.png"],"24":["slide_24_img1.png","slide_24_img2.png","slide_24_img3.png"],"25":["slide_25_img1.png","slide_25_img2.png","slide_25_img3.png","slide_25_img4.png"],"26":["slide_26_img1.png","slide_26_img2.png"],"27":["slide_27_img1.png","slide_27_img2.png","slide_27_img3.png","slide_27_img4.png","slide_27_img5.png","slide_27_img6.png","slide_27_img7.png","slide_27_img8.png","slide_27_img9.png"],"28":["slide_28_img1.png","slide_28_img2.png","slide_28_img3.png"],"29":["slide_29_img1.png","slide_29_img2.png","slide_29_img3.png","slide_29_img4.png"],"30":["slide_30_img1.png","slide_30_img2.png","slide_30_img3.png"],"31":["slide_31_img1.png","slide_31_img2.png","slide_31_img3.png"],"32":["slide_32_img1.png","slide_32_img2.png","slide_32_img3.png","slide_32_img4.png","slide_32_img5.png"],"33":["slide_33_img1.png","slide_33_img2.png","slide_33_img3.png"],"34":["slide_34_img1.png","slide_34_img2.png"],"35":["slide_35_img1.png","slide_35_img2.png"],"36":["slide_36_img1.png","slide_36_img2.png","slide_36_img3.png"],"37":["slide_37_img1.png","slide_37_img2.png","slide_37_img3.png"],"38":["slide_38_img1.png","slide_38_img2.png","slide_38_img3.png","slide_38_img4.png","slide_38_img5.png","slide_38_img6.png","slide_38_img7.png","slide_38_img8.png"],"39":["slide_39_img1.png","slide_39_img2.png","slide_39_img3.png","slide_39_img4.png"],"40":["slide_40_img1.png","slide_40_img2.png","slide_40_img3.png"],"41":["slide_41_img1.png"]};
+
+  document.querySelectorAll('.slide-thumb-wrap').forEach(wrap => {
+    const img = wrap.querySelector('.slide-thumb');
+    if (!img) return;
+    const slideNum = img.dataset.slide;
+    const hires = hiresMap[slideNum];
+    if (hires && hires.length > 0) {
+      // Replace single low-res thumbnail with high-res image(s)
+      wrap.innerHTML = '';
+      wrap.style.display = 'flex';
+      wrap.style.flexDirection = 'column';
+      wrap.style.gap = '8px';
+      hires.forEach(fname => {
+        const newImg = document.createElement('img');
+        newImg.className = 'slide-thumb';
+        newImg.src = 'slides/' + fname;
+        newImg.alt = img.alt;
+        newImg.dataset.slide = slideNum;
+        newImg.loading = 'lazy';
+        wrap.appendChild(newImg);
+      });
+    }
+  });
+
+  // ===== LIGHTBOX =====
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightboxImg');
+  const lightboxCaption = document.getElementById('lightboxCaption');
+  const lightboxClose = document.getElementById('lightboxClose');
+  const lightboxPrev = document.getElementById('lightboxPrev');
+  const lightboxNext = document.getElementById('lightboxNext');
+  const thumbs = Array.from(document.querySelectorAll('.slide-thumb'));
+  let currentThumbIdx = -1;
+
+  function openLightbox(idx) {
+    currentThumbIdx = idx;
+    const thumb = thumbs[idx];
+    lightboxImg.src = thumb.src;
+    lightboxImg.alt = thumb.alt;
+    lightboxCaption.textContent = 'Slide ' + thumb.dataset.slide + ' - ' + (thumb.alt || '');
+    lightbox.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    lightbox.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function prevSlide() {
+    if (currentThumbIdx > 0) openLightbox(currentThumbIdx - 1);
+  }
+
+  function nextSlide() {
+    if (currentThumbIdx < thumbs.length - 1) openLightbox(currentThumbIdx + 1);
+  }
+
+  thumbs.forEach((thumb, idx) => {
+    thumb.addEventListener('click', () => openLightbox(idx));
+  });
+
+  lightboxClose.addEventListener('click', closeLightbox);
+  lightboxPrev.addEventListener('click', prevSlide);
+  lightboxNext.addEventListener('click', nextSlide);
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) closeLightbox();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!lightbox.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') prevSlide();
+    if (e.key === 'ArrowRight') nextSlide();
+  });
+
+  // ===== BACK TO TOP =====
+  const backToTop = document.getElementById('backToTop');
+  window.addEventListener('scroll', () => {
+    backToTop.classList.toggle('visible', window.scrollY > 400);
+  }, { passive: true });
+  backToTop.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+})();
+</script>
+</body>
+</html>

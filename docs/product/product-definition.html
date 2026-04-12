@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AmazonAgent 产品定义</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #09090b;
+    --surface: #18181b;
+    --surface-2: #27272a;
+    --text: #fafafa;
+    --text-2: #a1a1aa;
+    --text-3: #71717a;
+    --accent: #f59e0b;
+    --accent-dim: rgba(245, 158, 11, 0.12);
+    --border: #27272a;
+    --border-light: #3f3f46;
+    --code-bg: #18181b;
+    --green: #22c55e;
+    --green-dim: rgba(34, 197, 94, 0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239, 68, 68, 0.12);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59, 130, 246, 0.12);
+    --purple: #a78bfa;
+    --purple-dim: rgba(167, 139, 250, 0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: "Inter", "Noto Sans SC", -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.8;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 80px 32px 160px;
+  }
+
+  /* Header */
+  .header {
+    margin-bottom: 72px;
+  }
+
+  .header .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 4px 12px;
+    border-radius: 100px;
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-size: 2.25rem;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  h1 .sub {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 400;
+    color: var(--text-3);
+    margin-top: 12px;
+    letter-spacing: 0;
+    line-height: 1.6;
+  }
+
+  /* Sections */
+  .section {
+    margin-top: 72px;
+  }
+
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 12px;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.3;
+    margin-bottom: 24px;
+  }
+
+  h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 40px;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  h4 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-top: 32px;
+    margin-bottom: 12px;
+  }
+
+  p {
+    color: var(--text-2);
+    margin-bottom: 16px;
+  }
+
+  p strong, li strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .lead {
+    font-size: 1.15rem;
+    line-height: 1.7;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* Callout */
+  .callout {
+    position: relative;
+    padding: 24px 28px;
+    margin: 28px 0;
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+    background: var(--surface);
+  }
+
+  .callout::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    border-radius: 12px 0 0 12px;
+  }
+
+  .callout.accent::before { background: var(--accent); }
+  .callout.green::before { background: var(--green); }
+
+  .callout p {
+    color: var(--text);
+    margin-bottom: 0;
+  }
+
+  .callout p + p { margin-top: 12px; }
+
+  /* Quote */
+  blockquote {
+    border-left: 2px solid var(--border-light);
+    padding: 4px 0 4px 20px;
+    margin: 24px 0;
+  }
+
+  blockquote p {
+    color: var(--text-2);
+    font-style: italic;
+    margin-bottom: 0;
+  }
+
+  /* Code */
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin: 24px 0;
+    overflow-x: auto;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.82rem;
+    line-height: 1.8;
+    color: var(--text-2);
+  }
+
+  code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.88em;
+    background: var(--surface);
+    padding: 2px 7px;
+    border-radius: 6px;
+    color: var(--accent);
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+  }
+
+  /* Lists */
+  ul, ol {
+    margin: 12px 0 24px 0;
+    padding-left: 24px;
+  }
+
+  li {
+    margin-bottom: 10px;
+    color: var(--text-2);
+  }
+
+  li::marker { color: var(--text-3); }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 0.88rem;
+  }
+
+  th {
+    text-align: left;
+    font-weight: 600;
+    padding: 12px 16px;
+    color: var(--text-3);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-2);
+    vertical-align: top;
+  }
+
+  td strong { color: var(--text); }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: var(--surface); }
+
+  /* Inputs grid */
+  .inputs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    margin: 28px 0;
+  }
+
+  .input-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+
+  .input-card:hover { border-color: var(--border-light); }
+
+  .input-card .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .input-card:nth-child(1) .num { background: var(--blue-dim); color: var(--blue); }
+  .input-card:nth-child(2) .num { background: var(--accent-dim); color: var(--accent); }
+  .input-card:nth-child(3) .num { background: var(--purple-dim); color: var(--purple); }
+
+  .input-card .source {
+    font-size: 0.7rem;
+    color: var(--text-3);
+    margin-bottom: 8px;
+  }
+
+  .input-card .title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .input-card .desc {
+    font-size: 0.82rem;
+    color: var(--text-3);
+    line-height: 1.6;
+  }
+
+  /* Priority */
+  .priority-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 24px 0;
+  }
+
+  .pri {
+    padding: 16px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .pri .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 100px;
+    margin-bottom: 8px;
+    letter-spacing: 0.03em;
+  }
+
+  .pri.p0 .tag { background: var(--red-dim); color: var(--red); }
+  .pri.p1 .tag { background: var(--accent-dim); color: var(--accent); }
+  .pri.p2 .tag { background: var(--blue-dim); color: var(--blue); }
+  .pri.good .tag { background: var(--green-dim); color: var(--green); }
+
+  .pri .label {
+    font-size: 0.82rem;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+
+  /* Do / Don't */
+  .boundary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 28px 0;
+  }
+
+  .boundary-col {
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+
+  .boundary-col.do {
+    background: var(--green-dim);
+    border-color: rgba(34, 197, 94, 0.2);
+  }
+
+  .boundary-col.dont {
+    background: var(--red-dim);
+    border-color: rgba(239, 68, 68, 0.2);
+  }
+
+  .boundary-col h4 {
+    margin-top: 0;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.9rem;
+  }
+
+  .boundary-col.do h4 { color: var(--green); }
+  .boundary-col.dont h4 { color: var(--red); }
+
+  .boundary-col ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.88rem;
+  }
+
+  .boundary-col li { color: var(--text-2); margin-bottom: 6px; }
+
+  /* Bottom */
+  .bottom-line {
+    text-align: center;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--text);
+    padding: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-top: 36px;
+    letter-spacing: -0.01em;
+  }
+
+  /* Divider */
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0;
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .container { padding: 48px 20px 100px; }
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1.25rem; }
+    .inputs-grid { grid-template-columns: 1fr; }
+    .priority-grid { grid-template-columns: 1fr; }
+    .boundary { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Header -->
+<div class="header">
+  <div class="badge">Product Definition</div>
+  <h1>
+    AmazonAgent
+    <span class="sub">通过广告决策，缩小 SKU 运营目标与当前表现之间的差距</span>
+  </h1>
+</div>
+
+<!-- 1. 产品目标 -->
+<div class="section">
+  <div class="section-label">01 / 产品目标</div>
+  <h2>诊断 Gap，输出广告层面能做什么来缩小它</h2>
+
+  <pre><code>用户的 SKU 运营计划（OP）:
+  目标销量    = 300 件/月
+  目标均价    = $45
+  目标毛利率  = 20%
+
+当前轨迹:
+  当前日销    = 5 件（需要 10 件才能达标）
+  当前 ACOS   = 35%
+  当前毛利率  = 12%
+
+Gap = OP 目标 − 当前轨迹</code></pre>
+
+  <p>广告是缩小 Gap 的杠杆之一。产品不替用户做所有决策，但在广告这根杠杆上，告诉用户：该加力、该收力、还是该换方向。</p>
+
+  <ul>
+    <li><strong>销量缺口</strong> → 流量不足（加预算/拓词）或转化率低（关键词不匹配）</li>
+    <li><strong>利润缺口</strong> → ACOS 超盈亏线（砍无效词）或 CPC 过高（调出价）</li>
+    <li><strong>增长健康</strong> → 自然单占比在上升吗？BSR 在改善吗？</li>
+  </ul>
+</div>
+
+<hr>
+
+<!-- 2. 核心洞察 -->
+<div class="section">
+  <div class="section-label">02 / 核心洞察</div>
+  <h2>真正稀缺的不是数据，是判断</h2>
+
+  <p>Amazon 广告后台有几千行数据。Helium 10、Jungle Scout 给你更多。数据从来不缺。</p>
+
+  <p>缺的是一个高级运营的判断力：看到同样的数据，知道什么该停、什么该加、什么再等等。这个判断力在一个人的脑子里 — 他走了，判断力就没了。</p>
+
+  <p>高级运营做判断时，脑子里有三样东西：</p>
+
+  <ol>
+    <li><strong>业务目标</strong>：这个产品要做到月销 300 件、毛利 20%，现在差多少</li>
+    <li><strong>经济参数</strong>：盈亏平衡 ACOS 是多少，过了这条线就是亏</li>
+    <li><strong>阶段意识</strong>：新品期 ACOS 200% 可以接受，成熟品不行；新关键词跑 3 天没曝光要查原因，老关键词 14 天没转化要停</li>
+  </ol>
+
+  <p>Amazon 后台只给你当前状态。没有一个工具把这三样东西和数据放在一起做判断。现有工具对所有产品用同一套规则，因为它们不知道每个产品的目标、经济参数和阶段。</p>
+
+  <p>这导致两个可观察的现象：</p>
+
+  <p><strong>决策疲劳</strong>是没有决策框架的症状。不知道目标和阶段，每一行数据都"可能重要"。有了框架，95% 的数据不需要看 — 没有穿越任何阈值，不需要行动。</p>
+
+  <p><strong>跨数据源分析</strong>是做判断的前提条件，不是功能卖点。诊断"销量为什么没达标"需要交叉广告数据 + 销售数据 + 经济参数 + BSR 趋势。单一数据源无法诊断。</p>
+
+  <div class="callout accent">
+    <p><strong>AmazonAgent 的核心</strong>：把高级运营的判断逻辑编码成系统 — 基于用户的业务目标、产品经济参数和所处阶段，从数据中生成决策信号。</p>
+    <p>人走了，判断力还在。</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- 3. 用户价值 -->
+<div class="section">
+  <div class="section-label">03 / 用户价值</div>
+  <h2>OP 达成率提升 + 广告浪费减少</h2>
+
+  <ul>
+    <li><strong>缩小 Gap</strong> — 诊断"为什么没达标"并给出广告动作：流量不足则拓词加预算，转化率低则排查关键词匹配度，ACOS 超线则砍无效支出</li>
+    <li><strong>减少浪费</strong> — 识别正在亏钱的广告支出（零成交词、ACOS 超盈亏线的广告组），量化每周损失金额</li>
+  </ul>
+
+  <p>每条信号都有明确的美元金额。用户的价值感知不是"我用了一个工具"，而是"这条信号帮我发现日销差 5 件是因为广告流量不够"或"这条信号帮我每周省了 $200"。</p>
+
+  <div class="callout green">
+    <p>更深层的价值：<strong>不再依赖某一个高级运营的个人经验。</strong>判断逻辑在系统里，人员流动不影响决策质量。</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- 4. 用户与场景 -->
+<div class="section">
+  <div class="section-label">04 / 用户与场景</div>
+  <h2>任何需要判断"这笔广告费该不该继续花"的人</h2>
+
+  <p>不按职位定义用户，按场景定义。</p>
+
+  <table>
+    <thead>
+      <tr><th>场景</th><th>典型用户</th><th>使用方式</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>自己管广告的个体卖家</td><td>年销 $10-50 万</td><td>每周看信号，直接操作</td></tr>
+      <tr><td>管多个产品的运营主管</td><td>带 3-10 人团队</td><td>看信号，分配任务给运营</td></tr>
+      <tr><td>为广告付钱的老板</td><td>有运营团队</td><td>看 P0 信号，拍板大决策</td></tr>
+      <tr><td>代运营服务商</td><td>管多个客户账号</td><td>用信号向客户汇报和建议</td></tr>
+    </tbody>
+  </table>
+
+  <p>共同特征：<strong>对广告花费有决策权或问责权，但没有时间逐行看数据。</strong></p>
+</div>
+
+<hr>
+
+<!-- 5. 决策模型 -->
+<div class="section">
+  <div class="section-label">05 / 决策模型</div>
+  <h2>三个输入，两层阶段，Gap 驱动的信号</h2>
+
+  <h3>5.1 三个输入</h3>
+
+  <p>决策模型需要三个输入，缺一不可：</p>
+
+  <div class="inputs-grid">
+    <div class="input-card">
+      <div class="num">1</div>
+      <div class="source">系统计算</div>
+      <div class="title">盈亏平衡线</div>
+      <div class="desc">(售价 − 成本 − FBA费 − 佣金) / 售价。过了这条线就是净亏损。</div>
+    </div>
+    <div class="input-card">
+      <div class="num">2</div>
+      <div class="source">用户设定</div>
+      <div class="title">ACOS 目标</div>
+      <div class="desc">广告效率期望，反映利润率目标。通常低于盈亏线。</div>
+    </div>
+    <div class="input-card">
+      <div class="num">3</div>
+      <div class="source">用户设定</div>
+      <div class="title">SKU 运营计划</div>
+      <div class="desc">{月销量, 均价, 毛利率} — 广告决策的业务锚点。</div>
+    </div>
+  </div>
+
+  <pre><code>OP（业务目标）  → 决定广告需要完成什么
+盈亏线（经济约束）→ 决定广告不能超过什么
+ACOS 目标（效率期望）→ 决定广告应该做到什么</code></pre>
+
+  <p>没有 OP，系统只能说"ACOS 太高"。有了 OP，系统能说<strong>"日销差 5 件是因为广告流量不足 — 当前 50 次点击/天 × 10% CVR = 5 单，目标 10 单需要 100 次点击"</strong>。</p>
+
+  <h3>5.2 分析粒度</h3>
+
+  <p>信号在<strong>广告组级别</strong>生成，下钻到<strong>关键词级别</strong>提供证据。广告组是"策略意图一致"的最小单元 — 同一组内关键词共享匹配类型和出价策略。不在关键词级别直接判断（会误杀引流词），不在活动级别（粒度太粗）。</p>
+
+  <h3>5.3 信号生成：从 Gap 到广告动作</h3>
+
+  <pre><code>第一步：计算 Gap
+  Gap(销量) = 目标月销 − 当前轨迹月销
+  Gap(利润) = 目标毛利率 − 当前毛利率
+  Gap(效率) = 目标 ACOS − 当前 ACOS
+
+第二步：诊断原因
+  销量 Gap → 流量不足？→ 加预算、拓词
+           → CVR 低？→ 关键词不匹配（标记但不修 Listing）
+  利润 Gap → ACOS 超盈亏线？→ 识别亏损关键词
+           → CPC 过高？→ 调出价
+  效率 Gap → 零成交高消耗？→ 否词/暂停
+           → 高 ROI 未扩量？→ 加预算/升级匹配
+
+第三步：排优先级 ↓</code></pre>
+
+  <div class="priority-grid">
+    <div class="pri p0">
+      <div class="tag">P0 / 今天处理</div>
+      <div class="label">正在亏钱，或阶段约束被违反。不行动则持续损失。</div>
+    </div>
+    <div class="pri p1">
+      <div class="tag">P1 / 本周处理</div>
+      <div class="label">有明确 Gap 且有可执行的广告动作，尚不紧急。</div>
+    </div>
+    <div class="pri p2">
+      <div class="tag">P2 / 两周内</div>
+      <div class="label">优化机会，可以更好但当前不亏。</div>
+    </div>
+    <div class="pri good">
+      <div class="tag">Good / 可扩大</div>
+      <div class="label">表现好于目标，确认并寻找扩量空间。</div>
+    </div>
+  </div>
+
+  <p>每条信号附带：<strong>证据</strong>（哪些关键词/广告组）、<strong>影响</strong>（每周 $ 金额）、<strong>趋势</strong>（恶化/改善）、<strong>动作</strong>（具体建议）。</p>
+
+  <h3>5.4 两层阶段模型</h3>
+
+  <p>阶段感知分两层：<strong>产品阶段</strong>决定整体策略，<strong>关键词生命周期</strong>决定单个关键词的评判标准。</p>
+
+  <h4>产品阶段 — 用户手动标记</h4>
+
+  <table>
+    <thead>
+      <tr><th>阶段</th><th>Gap 诊断重心</th><th>约束</th><th>P0 触发</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>new</strong></td><td>曝光和初单</td><td>总支出 &lt; 预算上限</td><td>曝光 &lt; 500/周</td></tr>
+      <tr><td><strong>early</strong></td><td>关键词发现和排名</td><td>单词浪费 &lt; $20</td><td>零成交 &gt; $20</td></tr>
+      <tr><td><strong>growth</strong></td><td>缩小 OP Gap</td><td>BSR 不连续下降</td><td>ACOS &gt; 盈亏线</td></tr>
+      <tr><td><strong>mature</strong></td><td>利润最大化</td><td>自然占比不降 + BSR 稳定</td><td>ACOS &gt; 目标</td></tr>
+    </tbody>
+  </table>
+
+  <h4>关键词生命周期 — 系统自动计算</h4>
+
+  <table>
+    <thead>
+      <tr><th>阶段</th><th>时间</th><th>评判标准</th><th>信号</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>发现期</strong></td><td>Day 1–3</td><td>有没有曝光？</td><td>零曝光 → 出价太低</td></tr>
+      <tr><td><strong>验证期</strong></td><td>Day 4–7</td><td>有没有点击？</td><td>CTR 极低 → 词不匹配</td></tr>
+      <tr><td><strong>确认期</strong></td><td>Day 8–14</td><td>有没有转化？</td><td>零转化 → 流量质量问题</td></tr>
+      <tr><td><strong>优化期</strong></td><td>Day 15+</td><td>赚不赚钱？</td><td>标准盈亏评估</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout accent">
+    <p><strong>两层组合的效果</strong>：growth 阶段产品上刚加的新关键词 — 产品用 growth 约束（ACOS &gt; 盈亏线 = P0），但关键词才跑 3 天还在发现期 — 此时不判断 ACOS，只看有没有曝光。避免误杀正在测试的新词。</p>
+  </div>
+</div>
+
+<hr>
+
+<!-- 6. 边界 -->
+<div class="section">
+  <div class="section-label">06 / 边界</div>
+  <h2>输入是广告数据，输出是决策信号，执行靠人</h2>
+
+  <div class="boundary">
+    <div class="boundary-col do">
+      <h4>做什么</h4>
+      <ul>
+        <li>接收 SKU 运营计划（OP）</li>
+        <li>读取 Amazon 广告数据</li>
+        <li>计算盈亏平衡线</li>
+        <li>诊断 OP 与现状的 Gap</li>
+        <li>产品阶段 + 关键词周期生成信号</li>
+        <li>量化每条信号的 $ 影响</li>
+        <li>决策闭环（确认/拒绝/推迟）</li>
+        <li>追踪决策效果</li>
+      </ul>
+    </div>
+    <div class="boundary-col dont">
+      <h4>不做什么</h4>
+      <ul>
+        <li>自动执行（调价、暂停词）</li>
+        <li>库存管理</li>
+        <li>自动改价 / Repricing</li>
+        <li>Listing 优化 / 文案生成</li>
+        <li>账号合规 / 申诉</li>
+        <li>多平台</li>
+        <li>站外获客</li>
+        <li>定义阶段</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bottom-line">
+    输入是广告数据，输出是决策信号，执行靠人。
+  </div>
+</div>
+
+</div>
+</body>
+</html>
