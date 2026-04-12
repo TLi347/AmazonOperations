@@ -1,310 +1,69 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
-model Product {
+// 快照类报表（除产品报表外的所有报表）
+// 存储策略：按 fileType upsert，每次上传同类型报表整条替换
+model ContextFile {
+  id           String   @id @default(cuid())
+  fileType     String   @unique  // 见 fileType 枚举：search_terms / campaign_3m / us_campaign_30d / placement_us_30d / inventory / keyword_monitor / cost_mgmt / aba_search
+  fileName     String            // 原始文件名，如 "search_terms_30d.xlsx"
+  uploadDate   DateTime @default(now())
+  snapshotDate String            // 来自报表 D2 字段的结束日期，如 "2026-04-08"
+  parsedRows   String            // JSON string: Row[]
+}
+
+// 产品报表时序数据
+// 存储策略：按 (asin, date) upsert，不同日期数据永远保留
+model ProductMetricDay {
+  id      String @id @default(cuid())
+  asin    String
+  date    String   // "2026-04-08"（来自报表 D2 字段的结束日期）
+  metrics String   // JSON string: { gmv, orders, units, returns, ad_spend, ad_sales, ad_orders, impressions, clicks, sessions, ocr }
+
+  @@unique([asin, date])
+}
+
+// 品类 → ASIN 列表映射
+// 存储策略：手动维护，通过 seed.ts 初始化
+model CategoryMap {
+  id          String @id @default(cuid())
+  categoryKey String @unique   // "mattress" | "pump" | "scooter"
+  displayName String           // "床垫" | "充气泵" | "电动滑板车"
+  asins       String           // JSON string: string[]，如 '["B0GD7BF2TZ", "B0GD7K1TC9"]'
+}
+
+// ASIN 级别配置（品类归属 + 产品阶段）
+// 存储策略：手动维护，通过 seed.ts 初始化
+model AsinConfig {
   id          String   @id @default(cuid())
   asin        String   @unique
-  name        String
-  shortName   String
-  emoji       String
-  category    String
-  stage       String   // "新品期" | "成长期" | "成熟期" | "衰退期"
-  brand       String   // "Nordhive" | "Roadvo"
-  marketplace String[] // ["US","CA","MX"]
-  rating      Float
-  reviewCount Int
-  price       Float
-  bsr         Int
-  createdAt   DateTime @default(now())
+  categoryKey String              // 与 CategoryMap.categoryKey 对应
+  stage       String              // "launch" | "growth" | "mature"
+  displayName String?             // 可选展示名，如 "Queen 4\" 沙发床垫"
   updatedAt   DateTime @updatedAt
-
-  files              DataFile[]
-  alerts             Alert[]
-  events             EventMarker[]
-  metrics            Metric[]
-  keywordMetrics     KeywordMetric[]
-  adOperationLogs    AdOperationLog[]
-  searchTerms        SearchTermReport[]
-  adPlacements       AdPlacement[]
-  costStructures     CostStructure[]
-  inventorySnapshots InventorySnapshot[]
-  chatSessions       ChatSession[]
 }
 
-model DataFile {
-  id          String   @id @default(cuid())
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
-  fileName    String
-  fileType    String
-  timeWindow  String   // "daily" | "weekly" | "biweekly" | "monthly" | "custom"
-  fileSize    Int
-  storagePath String
-  parsedData  Json?
-  uploadedAt  DateTime @default(now())
-}
-
-model Metric {
-  id          String   @id @default(cuid())
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id])
-  date        DateTime
-  timeWindow  String
-  marketplace String   // "US" | "CA" | "MX" | "ALL"
-
-  // 销售指标
-  gmv            Float @default(0)
-  orders         Int   @default(0)
-  units          Int   @default(0)
-  sessions       Int   @default(0)
-  pageViews      Int   @default(0)
-  conversionRate Float @default(0)
-  refunds        Int   @default(0)
-  refundRate     Float @default(0)
-  buyboxPct      Float @default(0)
-
-  // 广告指标
-  adSpend     Float @default(0)
-  adSales     Float @default(0)
-  adOrders    Int   @default(0)
-  acos        Float @default(0)
-  roas        Float @default(0)
-  tacos       Float @default(0)
-  ctr         Float @default(0)
-  cvr         Float @default(0)
-  cpc         Float @default(0)
-  impressions Int   @default(0)
-  clicks      Int   @default(0)
-
-  // 财务指标
-  revenue     Float @default(0)
-  fbaFee      Float @default(0)
-  referralFee Float @default(0)
-  storageFee  Float @default(0)
-  otherFees   Float @default(0)
-  cogs        Float @default(0)
-  grossProfit Float @default(0)
-  grossMargin Float @default(0)
-
-  createdAt DateTime @default(now())
-
-  @@unique([productId, date, timeWindow, marketplace])
-  @@index([productId, date])
-}
-
-model KeywordMetric {
-  id           String   @id @default(cuid())
-  productId    String
-  product      Product  @relation(fields: [productId], references: [id])
-  date         DateTime
-  marketplace  String
-  campaignName String
-  keyword      String
-  matchType    String   // "exact" | "phrase" | "broad"
-  bid          Float    @default(0)
-  impressions  Int      @default(0)
-  clicks       Int      @default(0)
-  ctr          Float    @default(0)
-  spend        Float    @default(0)
-  sales        Float    @default(0)
-  orders       Int      @default(0)
-  acos         Float    @default(0)
-  cpc          Float    @default(0)
-  cvr          Float    @default(0)
-
-  createdAt DateTime @default(now())
-
-  @@index([productId, date, keyword])
-}
-
-model AdOperationLog {
-  id            String   @id @default(cuid())
-  productId     String
-  product       Product  @relation(fields: [productId], references: [id])
-  date          DateTime
-  marketplace   String
-  campaignName  String
-  operationType String   // "negate_keyword" | "bid_adjust" | "status_change" | "budget_change"
-  target        String
-  detail        String
-  operator      String?
-
-  createdAt DateTime @default(now())
-
-  @@index([productId, date])
-}
-
-model SearchTermReport {
-  id           String   @id @default(cuid())
-  productId    String
-  product      Product  @relation(fields: [productId], references: [id])
-  date         DateTime
-  marketplace  String
-  searchTerm   String
-  impressions  Int      @default(0)
-  clicks       Int      @default(0)
-  spend        Float    @default(0)
-  sales        Float    @default(0)
-  orders       Int      @default(0)
-  acos         Float    @default(0)
-  matchType    String?
-  campaignName String?
-
-  createdAt DateTime @default(now())
-
-  @@index([productId, searchTerm])
-}
-
-model AbaSearchTerm {
-  id              String   @id @default(cuid())
-  reportDate      DateTime
-  marketplace     String
-  searchTerm      String
-  searchFreqRank  Int
-  topClickedAsin1 String?
-  topClickShare1  Float?
-  topConvShare1   Float?
-  topClickedAsin2 String?
-  topClickShare2  Float?
-  topConvShare2   Float?
-  topClickedAsin3 String?
-  topClickShare3  Float?
-  topConvShare3   Float?
-  isNew           Boolean  @default(false)
-  rankChange      Int?
-
-  createdAt DateTime @default(now())
-
-  @@index([searchTerm, reportDate])
-}
-
-model AdPlacement {
-  id           String   @id @default(cuid())
-  productId    String
-  product      Product  @relation(fields: [productId], references: [id])
-  date         DateTime
-  marketplace  String
-  campaignName String
-  placement    String   // "top_of_search" | "rest_of_search" | "product_page"
-  bidAdjustPct Float    @default(0)
-  impressions  Int      @default(0)
-  clicks       Int      @default(0)
-  spend        Float    @default(0)
-  sales        Float    @default(0)
-
-  createdAt DateTime @default(now())
-
-  @@index([productId, date])
-}
-
-model CostStructure {
-  id           String @id @default(cuid())
-  productId    String
-  product      Product @relation(fields: [productId], references: [id])
-  sku          String
-  marketplace  String
-  sellingPrice Float
-  fbaFeePct    Float
-  referralPct  Float
-  adCostPct    Float
-  cogsPct      Float
-  otherPct     Float
-  netMarginPct Float
-
-  updatedAt DateTime @updatedAt
-
-  @@unique([productId, sku, marketplace])
-}
-
-model InventorySnapshot {
-  id             String   @id @default(cuid())
-  productId      String
-  product        Product  @relation(fields: [productId], references: [id])
-  sku            String
-  marketplace    String
-  snapshotDate   DateTime // date this snapshot was exported
-
-  // 库存数量
-  availableQty   Int      @default(0)
-  unavailableQty Int      @default(0)
-  reservedQty    Int      @default(0)
-  inboundQty     Int      @default(0) // 在途库存合计
-
-  // 运算指标 (Phase 3 InventoryPanel 所需)
-  daysOfSupply   Float    @default(0) // 预估可售天数
-  dailySales     Float    @default(0) // 日均销量 (derived: availableQty / daysOfSupply)
-  restockQty     Int      @default(0) // 建议补货量 = dailySales * 60
-
-  // 价值
-  inventoryValue Float    @default(0)
-  inventoryCost  Float    @default(0)
-
-  // 库龄分布（数量）
-  aged0_30       Int      @default(0)
-  aged31_60      Int      @default(0)
-  aged61_90      Int      @default(0)
-  aged91_180     Int      @default(0)
-  aged181_330    Int      @default(0)
-  aged331_365    Int      @default(0)
-  aged365Plus    Int      @default(0)
-
-  // 仓储费
-  monthlyStorageFee     Float @default(0)
-  longTermStorageFee    Float @default(0)
-
-  createdAt DateTime @default(now())
-
-  @@unique([productId, sku, marketplace, snapshotDate])
-  @@index([productId, snapshotDate])
-}
-
+// 每日告警快照（ASIN × 指标粒度）
+// 存储策略：上传产品报表后，按 snapshotDate 全量重写（deleteMany + batch insert）
 model Alert {
-  id              String    @id @default(cuid())
-  productId       String
-  product         Product   @relation(fields: [productId], references: [id])
-  priority        String
-  title           String
-  description     String
-  triggerRule     String
-  suggestedAction String
-  status          String    @default("open")
-  createdAt       DateTime  @default(now())
-  resolvedAt      DateTime?
-}
+  id           String   @id @default(cuid())
+  asin         String
+  categoryKey  String                    // "mattress" | "pump" | "scooter"
+  metric       String                    // "acos_red" | "sessions_drop" | "inventory_low" | "budget_utilization" | ...
+  level        String                    // "red" | "yellow"
+  currentValue Float                     // 实际值，如 0.824（ACOS 82.4%）
+  threshold    Float                     // 触发阈值，如 0.55
+  stage        String                    // "launch" | "growth" | "mature"
+  suggestion   String                    // 建议操作文本
+  snapshotDate String                    // 产品报表日期，如 "2026-04-09"
+  createdAt    DateTime @default(now())
 
-model EventMarker {
-  id        String   @id @default(cuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  startDate DateTime
-  endDate   DateTime
-  eventType String
-  note      String
-  createdAt DateTime @default(now())
-}
-
-model ChatSession {
-  id        String        @id @default(cuid())
-  productId String
-  product   Product       @relation(fields: [productId], references: [id])
-  messages  ChatMessage[]
-  createdAt DateTime      @default(now())
-}
-
-model ChatMessage {
-  id        String      @id @default(cuid())
-  sessionId String
-  session   ChatSession @relation(fields: [sessionId], references: [id])
-  role      String
-  content   String      @db.Text
-  createdAt DateTime    @default(now())
+  @@unique([asin, metric, snapshotDate])
+  @@index([categoryKey, snapshotDate])
 }

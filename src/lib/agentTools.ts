@@ -1,397 +1,399 @@
 /**
- * Agent tool definitions + client-side executors.
+ * lib/agentTools.ts
  *
- * Tools are defined as Anthropic tool schemas (sent to Claude).
- * Executors run locally in the browser against Zustand state
- * — no server-side DB required.
+ * Claude 工具定义（TOOL_DEFINITIONS）+ 服务端工具执行（executeTool）
+ * 所有工具通过查询 SQLite DB 返回 JSON 字符串给 Claude。
  */
 
-// ── Tool name enum ─────────────────────────────────────────────────────────────
+import Anthropic from "@anthropic-ai/sdk"
+import { db } from "@/lib/db"
 
-export type ToolName =
-  | "get_metrics"
-  | "get_acos_history"
-  | "get_inventory"
-  | "get_ad_campaigns"
-  | "get_search_terms"
-  | "get_alerts"
-  | "list_uploaded_files"
-  | "get_file_data";
+// ── 新鲜度计算 ─────────────────────────────────────────────────────────────
 
-// ── Tool definitions for Anthropic API ────────────────────────────────────────
+const FRESHNESS_THRESHOLDS: Record<string, { fresh: number; ok: number }> = {
+  product:          { fresh: 1,  ok: 2  },
+  keyword_monitor:  { fresh: 2,  ok: 7  },
+  search_terms:     { fresh: 5,  ok: 14 },
+  campaign_3m:      { fresh: 10, ok: 45 },
+  us_campaign_30d:  { fresh: 5,  ok: 10 },
+  placement_us_30d: { fresh: 5,  ok: 10 },
+  inventory:        { fresh: 3,  ok: 7  },
+  cost_mgmt:        { fresh: 30, ok: 60 },
+  aba_search:       { fresh: 30, ok: 90 },
+}
 
-export const AGENT_TOOLS = [
+export function getFreshness(
+  fileType: string,
+  uploadDate: Date
+): "fresh" | "ok" | "stale" {
+  const daysAgo = (Date.now() - uploadDate.getTime()) / 86400000
+  const t = FRESHNESS_THRESHOLDS[fileType]
+  if (!t) return "ok"
+  if (daysAgo <= t.fresh) return "fresh"
+  if (daysAgo <= t.ok)    return "ok"
+  return "stale"
+}
+
+// ── 工具定义 ───────────────────────────────────────────────────────────────
+
+export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
-    name: "get_metrics" as const,
-    description:
-      "查询产品的 KPI 指标快照，包含 GMV、订单量、ACoS、ROAS、CTR、CPC、CVR、广告花费。" +
-      "可查询：今日(today)、昨日(yesterday)、近7日(w7)、近14日(w14)、近30日(d30)。" +
-      "需要分析多个时间段时请多次调用此工具。",
+    name: "get_metrics",
+    description: "查询产品 KPI 快照（GMV、订单量、广告花费、ACOS、TACoS、CTR、CVR）。time_window: today=最新一天 / yesterday=前一天 / w7=近7天聚合 / w14=近14天聚合 / d30=近30天聚合",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {
         time_window: {
           type: "string",
           enum: ["today", "yesterday", "w7", "w14", "d30"],
-          description: "时间窗口",
+        },
+        asin: {
+          type: "string",
+          description: "可选，不传则返回所有 ASIN 的聚合数据",
         },
       },
       required: ["time_window"],
     },
   },
   {
-    name: "get_acos_history" as const,
-    description:
-      "查询 ACoS + GMV 日趋势历史数组，用于分析广告效率趋势。" +
-      "每条记录含 date(YYYY-MM-DD)、acos(%)、gmv($)。",
+    name: "get_acos_history",
+    description: "查询某 ASIN 的 ACoS + GMV 日趋势（来自 ProductMetricDay 时序表），用于分析广告效率变化趋势",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {
-        days: {
-          type: "number",
-          description: "返回最近 N 天；不填则返回全部历史",
-        },
+        asin: { type: "string", description: "ASIN 编号" },
+        days: { type: "number", description: "最近 N 天，默认 30" },
       },
+      required: ["asin"],
     },
   },
   {
-    name: "get_inventory" as const,
-    description:
-      "查询产品库存状况。返回各 SKU/市场 的可售库存、在途库存、可售天数、日均销量、建议补货量。",
+    name: "get_inventory",
+    description: "查询所有 ASIN 的库存状况（可售库存量、补货建议）",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {},
+      required: [],
     },
   },
   {
-    name: "get_ad_campaigns" as const,
-    description:
-      "查询广告活动维度数据。每条记录含：活动名、状态、花费、销售额、预算、ACoS、ROAS、CTR、CVR。" +
-      "filter 参数可按高ACoS、超预算、花费最高过滤。",
+    name: "get_ad_campaigns",
+    description: "查询广告活动维度数据（来自广告活动重构报表）。filter: all=全部 / high_acos=高ACOS / over_budget=超预算 / top_spend=花费最高",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {
         filter: {
           type: "string",
           enum: ["all", "high_acos", "over_budget", "top_spend"],
-          description:
-            "all=全部 | high_acos=ACoS>55% | over_budget=花费超预算10%+ | top_spend=花费最高前10",
         },
-        limit: {
-          type: "number",
-          description: "最多返回 N 条，默认 20",
-        },
+        asin: { type: "string", description: "可选，限定某个 ASIN" },
       },
+      required: ["filter"],
     },
   },
   {
-    name: "get_search_terms" as const,
-    description:
-      "查询搜索词（关键词）粒度的广告表现。每条记录含：搜索词、匹配类型、花费、订单、ACoS、CVR、CTR、CPC。" +
-      "filter 参数可按零转化、优质词、高ACoS、高花费过滤。",
+    name: "get_search_terms",
+    description: "查询搜索词广告表现数据（来自搜索词重构报表）。filter: all=全部 / zero_conv=零转化词 / winner=高效词(ACoS≤35%且CVR≥4%) / high_acos=高ACOS / high_spend=高花费",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {
         filter: {
           type: "string",
           enum: ["all", "zero_conv", "winner", "high_acos", "high_spend"],
-          description:
-            "all=全部 | zero_conv=点击≥10无成交 | winner=ACoS≤35%且CVR≥4% | high_acos=ACoS>60% | high_spend=花费最高",
         },
-        limit: {
-          type: "number",
-          description: "最多返回 N 条，默认 30",
-        },
+        asin: { type: "string", description: "可选，限定某个 ASIN" },
       },
+      required: ["filter"],
     },
   },
   {
-    name: "get_alerts" as const,
-    description:
-      "查询告警引擎已触发的告警列表（来自上传的广告活动/搜索词报表自动检测）。" +
-      "含优先级(P0-P3)、告警标题、描述、建议动作。",
+    name: "get_alerts",
+    description: "查询已触发的每日告警（最新快照）。level: red=红色危急 / yellow=黄色关注 / all=全部",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {
-        priority: {
+        level: {
           type: "string",
-          enum: ["all", "P0", "P1", "P2", "P3"],
-          description: "all=全部 | P0=立即处理 | P1=24h内 | P2=本周 | P3=下周期",
+          enum: ["all", "red", "yellow"],
+          description: "red=红色危急告警 / yellow=黄色关注告警 / all=全部",
+        },
+        category: {
+          type: "string",
+          description: "可选，按品类过滤，如 'mattress' / 'pump' / 'scooter'",
         },
       },
+      required: ["level"],
     },
   },
   {
-    name: "list_uploaded_files" as const,
-    description:
-      "列出当前产品已上传的报表文件列表，用于判断哪些数据维度已有数据可查询。",
+    name: "list_uploaded_files",
+    description: "列出 context/ 中已上传的所有报表文件及其上传日期和新鲜度状态",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {},
+      required: [],
     },
   },
   {
-    name: "get_file_data" as const,
-    description:
-      "按文件类型读取已上传报表的完整解析数据。适用于所有文件类型，包括：" +
-      "nordhive_sku_report（SKU视图指标）、" +
-      "nordhive_ad_placement（广告位分布）、" +
-      "nordhive_ad_restructure（广告活动重构）、" +
-      "nordhive_cost_mgmt（成本管理/毛利率）、" +
-      "single_product_archive（单品归档）、" +
-      "aba_search_compare（ABA搜索词竞品对比）。" +
-      "也可用于读取 nordhive_asin_report / nordhive_ad_campaign / nordhive_search_term 的原始行数据。" +
-      "先调用 list_uploaded_files 确认文件类型再调用此工具。",
+    name: "get_file_data",
+    description: "读取任意已上传报表的原始解析数据，适用于 aba_search（ABA搜索词对比）、cost_mgmt（成本管理）、placement_us_30d（广告位报表）等无专用工具的文件类型",
     input_schema: {
-      type: "object" as const,
+      type: "object",
       properties: {
         file_type: {
           type: "string",
-          description:
-            "文件类型标识，如 nordhive_sku_report / nordhive_cost_mgmt / aba_search_compare 等",
+          description: "fileType 枚举值，如 aba_search / cost_mgmt / placement_us_30d / campaign_3m 等",
         },
         limit: {
           type: "number",
-          description: "最多返回 N 条记录，默认 50",
+          description: "返回行数上限，默认 50",
         },
       },
       required: ["file_type"],
     },
   },
-] as const;
+]
 
-// ── Agent state (read-only snapshot from Zustand) ─────────────────────────────
+// ── 工具执行 ───────────────────────────────────────────────────────────────
 
-export interface AgentState {
-  productId: string;
-  metrics?: {
-    today?: Record<string, number>;
-    yesterday?: Record<string, number>;
-    w7?: Record<string, number>;
-    w14?: Record<string, number>;
-    d30?: Record<string, number>;
-    acosHistory?: Array<{ date: string; acos: number; gmv?: number }>;
-  };
-  inventory?: unknown[];
-  adData?: {
-    campaigns: Record<string, unknown>[];
-    searchTerms: Record<string, unknown>[];
-  };
-  alerts?: Array<{ priority: string; status: string; [key: string]: unknown }>;
-  files?: Array<{ fileName: string; fileType: string; timeWindow: string }>;
-  /** All parsed file data keyed by fileType — covers every uploaded file type */
-  parsedFileData?: Record<string, Record<string, unknown>[]>;
+export async function executeTool(
+  name:  string,
+  input: Record<string, unknown>
+): Promise<string> {
+  try {
+    switch (name) {
+
+      // ── get_metrics ──────────────────────────────────────────────────────
+      case "get_metrics": {
+        const tw = input.time_window as string
+
+        // today / yesterday: 取最近 N 条不同日期的记录
+        if (tw === "today" || tw === "yesterday") {
+          const offset = tw === "yesterday" ? 1 : 0
+          // 取所有 ASIN 最新（或次新）日期
+          const distinctDates = await db.productMetricDay.findMany({
+            distinct:  ["date"],
+            orderBy:   { date: "desc" },
+            select:    { date: true },
+            take:      2,
+          })
+          const targetDate = distinctDates[offset]?.date
+          if (!targetDate) return JSON.stringify({ error: `暂无${tw === "today" ? "今日" : "昨日"}数据` })
+
+          const where = input.asin
+            ? { asin: input.asin as string, date: targetDate }
+            : { date: targetDate }
+          const rows = await db.productMetricDay.findMany({ where })
+          return JSON.stringify(aggregateMetrics(rows, targetDate))
+        }
+
+        // w7 / w14 / d30: 聚合多天
+        const daysMap: Record<string, number> = { w7: 7, w14: 14, d30: 30 }
+        const numDays = daysMap[tw] ?? 7
+
+        const latest = await db.productMetricDay.findFirst({
+          orderBy: { date: "desc" },
+          select:  { date: true },
+        })
+        if (!latest) return JSON.stringify({ error: "暂无数据，请先上传产品报表" })
+
+        const fromDate = subtractDays(latest.date, numDays - 1)
+        const where = input.asin
+          ? { asin: input.asin as string, date: { gte: fromDate } }
+          : { date: { gte: fromDate } }
+        const rows = await db.productMetricDay.findMany({ where })
+        return JSON.stringify(aggregateMetrics(rows, `${fromDate} ~ ${latest.date}`))
+      }
+
+      // ── get_acos_history ─────────────────────────────────────────────────
+      case "get_acos_history": {
+        const asin = input.asin as string
+        const days = (input.days as number) ?? 30
+        const latest = await db.productMetricDay.findFirst({
+          orderBy: { date: "desc" },
+          select:  { date: true },
+        })
+        if (!latest) return JSON.stringify({ error: "暂无数据" })
+
+        const fromDate = subtractDays(latest.date, days - 1)
+        const rows = await db.productMetricDay.findMany({
+          where:   { asin, date: { gte: fromDate } },
+          orderBy: { date: "asc" },
+        })
+        if (rows.length === 0) return JSON.stringify({ error: `ASIN ${asin} 无历史数据` })
+
+        return JSON.stringify(rows.map(r => {
+          const m = JSON.parse(r.metrics) as Record<string, number>
+          return {
+            date:    r.date,
+            gmv:     m.gmv,
+            orders:  m.orders,
+            ad_spend: m.ad_spend,
+            acos:    m.ad_sales > 0 ? m.ad_spend / m.ad_sales : null,
+            tacos:   m.gmv       > 0 ? m.ad_spend / m.gmv       : null,
+          }
+        }))
+      }
+
+      // ── get_inventory ─────────────────────────────────────────────────────
+      case "get_inventory": {
+        const file = await db.contextFile.findUnique({ where: { fileType: "inventory" } })
+        if (!file) return JSON.stringify({ error: "库存报表未上传，请上传「库存报表」文件" })
+        return JSON.stringify({ rows: JSON.parse(file.parsedRows), snapshotDate: file.snapshotDate })
+      }
+
+      // ── get_ad_campaigns ─────────────────────────────────────────────────
+      case "get_ad_campaigns": {
+        const file = await db.contextFile.findUnique({ where: { fileType: "campaign_3m" } })
+        if (!file) return JSON.stringify({ error: "广告活动重构报表未上传" })
+
+        let rows = JSON.parse(file.parsedRows) as Array<Record<string, unknown>>
+        if (input.asin) rows = rows.filter(r => r.asin === input.asin)
+
+        const filter = input.filter as string
+        if (filter === "high_acos") {
+          rows = rows.filter(r => ((r.acos as number) ?? 0) > 0.6)
+        } else if (filter === "over_budget") {
+          rows = rows.filter(r => {
+            const spend  = (r.spend  as number) ?? 0
+            const budget = (r.budget as number) ?? 0
+            return budget > 0 && spend > budget
+          })
+        } else if (filter === "top_spend") {
+          rows = rows.sort((a, b) => ((b.spend as number) ?? 0) - ((a.spend as number) ?? 0)).slice(0, 20)
+        }
+
+        return JSON.stringify({ rows: rows.slice(0, 50), snapshotDate: file.snapshotDate })
+      }
+
+      // ── get_search_terms ──────────────────────────────────────────────────
+      case "get_search_terms": {
+        const file = await db.contextFile.findUnique({ where: { fileType: "search_terms" } })
+        if (!file) return JSON.stringify({ error: "搜索词重构报表未上传" })
+
+        let rows = JSON.parse(file.parsedRows) as Array<Record<string, unknown>>
+        if (input.asin) rows = rows.filter(r => r.asin === input.asin)
+
+        const filter = input.filter as string
+        if (filter === "zero_conv") {
+          rows = rows.filter(r => ((r.clicks as number) ?? 0) >= 5 && ((r.orders as number) ?? 0) === 0)
+        } else if (filter === "winner") {
+          // conversion_rate = 广告CVR（广告订单量 ÷ 点击量），来自搜索词重构报表；
+          // 非产品报表的 OCR（页面转化率 = 订单量 ÷ Sessions），两者含义不同
+          rows = rows.filter(r => {
+            const acos = (r.acos as number) ?? 999
+            const cvr  = (r.cvr  as number) ?? (r.conversion_rate as number) ?? 0
+            return acos < 0.35 && cvr >= 0.04
+          })
+        } else if (filter === "high_acos") {
+          rows = rows.filter(r => ((r.acos as number) ?? 0) > 0.8)
+        } else if (filter === "high_spend") {
+          rows = rows.sort((a, b) => ((b.spend as number) ?? 0) - ((a.spend as number) ?? 0))
+        }
+
+        return JSON.stringify({ rows: rows.slice(0, 50), snapshotDate: file.snapshotDate })
+      }
+
+      // ── get_alerts ────────────────────────────────────────────────────────
+      case "get_alerts": {
+        const latest = await db.alert.findFirst({ orderBy: { snapshotDate: "desc" }, select: { snapshotDate: true } })
+        if (!latest) return JSON.stringify({ error: "暂无告警数据，请先上传产品报表" })
+
+        const alerts = await db.alert.findMany({
+          where: {
+            snapshotDate: latest.snapshotDate,
+            ...(input.level && input.level !== "all" ? { level: input.level as string } : {}),
+            ...(input.category ? { categoryKey: input.category as string } : {}),
+          },
+          orderBy: { level: "asc" },  // "red" 字母序先于 "yellow"
+          take: 100,
+        })
+        return JSON.stringify({ alerts, snapshotDate: latest.snapshotDate })
+      }
+
+      // ── list_uploaded_files ───────────────────────────────────────────────
+      case "list_uploaded_files": {
+        const files = await db.contextFile.findMany({ orderBy: { uploadDate: "desc" } })
+        return JSON.stringify(
+          files.map(f => ({
+            fileType:    f.fileType,
+            fileName:    f.fileName,
+            snapshotDate: f.snapshotDate,
+            freshness:   getFreshness(f.fileType, f.uploadDate),
+          }))
+        )
+      }
+
+      // ── get_file_data ─────────────────────────────────────────────────────
+      case "get_file_data": {
+        const fileType = input.file_type as string
+        if (!fileType) return JSON.stringify({ error: "缺少 file_type 参数" })
+
+        const file = await db.contextFile.findUnique({ where: { fileType } })
+        if (!file) return JSON.stringify({ error: `文件类型 "${fileType}" 未上传` })
+
+        const limit = (input.limit as number) ?? 50
+        const allRows = JSON.parse(file.parsedRows) as unknown[]
+        return JSON.stringify({
+          fileType,
+          snapshotDate: file.snapshotDate,
+          total:    allRows.length,
+          showing:  Math.min(limit, allRows.length),
+          rows:     allRows.slice(0, limit),
+        })
+      }
+
+      default:
+        return JSON.stringify({ error: `未知工具: ${name}` })
+    }
+  } catch (err) {
+    return JSON.stringify({ error: `工具执行出错: ${err instanceof Error ? err.message : String(err)}` })
+  }
 }
 
-// ── Tool display labels (shown in UI during tool calls) ───────────────────────
+// ── 内部工具函数 ───────────────────────────────────────────────────────────
 
-export const TOOL_LABELS: Record<ToolName, string> = {
-  get_metrics:        "KPI 指标",
-  get_acos_history:   "ACoS 趋势",
-  get_inventory:      "库存数据",
-  get_ad_campaigns:   "广告活动",
-  get_search_terms:   "搜索词数据",
-  get_alerts:         "当前告警",
-  list_uploaded_files: "已上传文件",
-  get_file_data:      "报表数据",
-};
+/** 聚合多条 ProductMetricDay 为汇总指标 */
+function aggregateMetrics(
+  rows:  Array<{ metrics: string }>,
+  label: string = ""
+): Record<string, unknown> {
+  if (rows.length === 0) return { error: "无数据" }
 
-// ── Client-side tool executors ─────────────────────────────────────────────────
-
-type ToolInput = Record<string, unknown>;
-
-export function executeToolCall(
-  name: ToolName,
-  input: ToolInput,
-  state: AgentState
-): unknown {
-  switch (name) {
-    // ── get_metrics ──────────────────────────────────────────────────────────
-    case "get_metrics": {
-      const tw = input.time_window as string;
-      const windowMap: Record<string, keyof NonNullable<AgentState["metrics"]>> = {
-        today:     "today",
-        yesterday: "yesterday",
-        w7:        "w7",
-        w14:       "w14",
-        d30:       "d30",
-      };
-      const key = windowMap[tw];
-      if (!key) return { error: `未知时间窗口: ${tw}` };
-      const snap = state.metrics?.[key];
-      if (!snap) {
-        return {
-          error: `暂无「${tw}」时间窗口的数据。` +
-            (tw === "today" || tw === "yesterday"
-              ? "请上传单日(daily)的 ASIN 报表。"
-              : tw === "w7"
-              ? "请上传近7天的 weekly ASIN 报表。"
-              : tw === "w14"
-              ? "请上传近14天的 biweekly ASIN 报表。"
-              : "请上传近30天的 monthly ASIN 报表。"),
-        };
-      }
-      return { time_window: tw, ...snap };
-    }
-
-    // ── get_acos_history ─────────────────────────────────────────────────────
-    case "get_acos_history": {
-      const hist = state.metrics?.acosHistory ?? [];
-      if (!hist.length) {
-        return { error: "暂无 ACoS 历史数据，请依次上传多天 daily ASIN 报表。" };
-      }
-      const days = input.days as number | undefined;
-      return days ? hist.slice(-days) : hist;
-    }
-
-    // ── get_inventory ─────────────────────────────────────────────────────────
-    case "get_inventory": {
-      const inv = state.inventory ?? [];
-      if (!inv.length) return { error: "暂无库存数据，请上传库存报表。" };
-      return inv;
-    }
-
-    // ── get_ad_campaigns ─────────────────────────────────────────────────────
-    case "get_ad_campaigns": {
-      const campaigns = state.adData?.campaigns ?? [];
-      if (!campaigns.length) {
-        return { error: "暂无广告活动数据，请上传「系统-Nordhive-*-广告活动*.xlsx」。" };
-      }
-
-      const filter = (input.filter as string) || "all";
-      const limit  = (input.limit  as number) || 20;
-
-      let result = [...campaigns] as Array<Record<string, unknown>>;
-
-      if (filter === "high_acos") {
-        result = result.filter((c) => ((c.acos as number) ?? 0) > 55);
-      } else if (filter === "over_budget") {
-        result = result.filter((c) => {
-          const spend  = (c.spend  as number) ?? 0;
-          const budget = (c.budget as number) ?? 0;
-          return budget > 0 && spend > budget * 1.1;
-        });
-      } else if (filter === "top_spend") {
-        result = result
-          .slice()
-          .sort((a, b) => ((b.spend as number) ?? 0) - ((a.spend as number) ?? 0));
-      }
-
-      // Strip rawJson to keep tool result concise
-      return result.slice(0, limit).map(({ rawJson: _rawJson, ...rest }) => rest);
-    }
-
-    // ── get_search_terms ─────────────────────────────────────────────────────
-    case "get_search_terms": {
-      const terms = state.adData?.searchTerms ?? [];
-      if (!terms.length) {
-        return { error: "暂无搜索词数据，请上传「系统-Nordhive-*-搜索词重构*.xlsx」。" };
-      }
-
-      const filter = (input.filter as string) || "all";
-      const limit  = (input.limit  as number) || 30;
-
-      let result = [...terms] as Array<Record<string, unknown>>;
-
-      if (filter === "zero_conv") {
-        result = result.filter(
-          (t) => ((t.clicks as number) ?? 0) >= 10 && ((t.orders as number) ?? 0) === 0
-        );
-      } else if (filter === "winner") {
-        result = result.filter(
-          (t) => ((t.acos as number) ?? 999) <= 35 && ((t.cvr as number) ?? 0) >= 4
-        );
-      } else if (filter === "high_acos") {
-        result = result.filter((t) => ((t.acos as number) ?? 0) > 60);
-      } else if (filter === "high_spend") {
-        result = result
-          .slice()
-          .sort((a, b) => ((b.spend as number) ?? 0) - ((a.spend as number) ?? 0));
-      }
-
-      return result.slice(0, limit);
-    }
-
-    // ── get_alerts ───────────────────────────────────────────────────────────
-    case "get_alerts": {
-      const alerts = state.alerts ?? [];
-      const priority = (input.priority as string) || "all";
-      const open = alerts.filter((a) => a.status === "open");
-      const filtered =
-        priority === "all"
-          ? open
-          : open.filter((a) => a.priority === priority);
-      if (!filtered.length) {
-        return { message: priority === "all" ? "当前无告警" : `当前无 ${priority} 级别告警` };
-      }
-      return filtered;
-    }
-
-    // ── list_uploaded_files ───────────────────────────────────────────────────
-    case "list_uploaded_files": {
-      const files = state.files ?? [];
-      if (!files.length) return { message: "当前产品暂无已上传文件" };
-      return files.map((f) => ({
-        fileName:   f.fileName,
-        fileType:   f.fileType,
-        timeWindow: f.timeWindow,
-      }));
-    }
-
-    // ── get_file_data ─────────────────────────────────────────────────────────
-    case "get_file_data": {
-      const fileType = input.file_type as string;
-      const limit    = (input.limit as number) || 50;
-
-      if (!fileType) return { error: "缺少 file_type 参数" };
-
-      // Fallback hints for types with dedicated tools
-      if (fileType === "nordhive_asin_report") {
-        const hasMetrics = state.metrics && (
-          state.metrics.today || state.metrics.w7 || state.metrics.w14 || state.metrics.d30
-        );
-        if (hasMetrics) {
-          return {
-            hint: "ASIN报表数据请使用 get_metrics(time_window) 和 get_acos_history() 工具获取，数据已就绪。",
-            available_windows: Object.entries(state.metrics ?? {})
-              .filter(([k, v]) => k !== "acosHistory" && v != null)
-              .map(([k]) => k),
-          };
-        }
-      }
-      if (fileType === "nordhive_ad_campaign") {
-        const rows = state.adData?.campaigns ?? [];
-        if (rows.length) return { hint: "广告活动数据请使用 get_ad_campaigns() 工具获取，数据已就绪。", count: rows.length };
-      }
-      if (fileType === "nordhive_search_term") {
-        const rows = state.adData?.searchTerms ?? [];
-        if (rows.length) return { hint: "搜索词数据请使用 get_search_terms() 工具获取，数据已就绪。", count: rows.length };
-      }
-      if (fileType === "nordhive_inventory") {
-        const rows = state.inventory ?? [];
-        if (rows.length) return { hint: "库存数据请使用 get_inventory() 工具获取，数据已就绪。", count: rows.length };
-      }
-
-      // General lookup from parsedFileData
-      const rows = state.parsedFileData?.[fileType];
-      if (!rows || rows.length === 0) {
-        const available = Object.keys(state.parsedFileData ?? {});
-        return {
-          error: `未找到 ${fileType} 的数据，该文件可能未上传或需要重新上传。`,
-          available_types: available.length ? available : [],
-          tip: "请确认已通过左侧栏「上传文件」按钮上传了对应报表。",
-        };
-      }
-
+  const totals = rows.reduce(
+    (acc, row) => {
+      const m = JSON.parse(row.metrics) as Record<string, number>
       return {
-        file_type:   fileType,
-        total_rows:  rows.length,
-        returned:    Math.min(limit, rows.length),
-        rows:        rows.slice(0, limit),
-      };
-    }
+        gmv:         acc.gmv         + (m.gmv         ?? 0),
+        orders:      acc.orders      + (m.orders      ?? 0),
+        units:       acc.units       + (m.units       ?? 0),
+        ad_spend:    acc.ad_spend    + (m.ad_spend    ?? 0),
+        ad_sales:    acc.ad_sales    + (m.ad_sales    ?? 0),
+        ad_orders:   acc.ad_orders   + (m.ad_orders   ?? 0),
+        impressions: acc.impressions + (m.impressions ?? 0),
+        clicks:      acc.clicks      + (m.clicks      ?? 0),
+        sessions:    acc.sessions    + (m.sessions    ?? 0),
+      }
+    },
+    { gmv: 0, orders: 0, units: 0, ad_spend: 0, ad_sales: 0, ad_orders: 0, impressions: 0, clicks: 0, sessions: 0 }
+  )
 
-    default:
-      return { error: `未知工具: ${name as string}` };
+  return {
+    period:      label,
+    day_count:   rows.length,
+    ...totals,
+    acos:   totals.ad_sales   > 0 ? +(totals.ad_spend   / totals.ad_sales).toFixed(4)   : null,
+    tacos:  totals.gmv        > 0 ? +(totals.ad_spend   / totals.gmv).toFixed(4)        : null,
+    ctr:    totals.impressions > 0 ? +(totals.clicks     / totals.impressions).toFixed(5) : null,
+    cvr:    totals.clicks     > 0 ? +(totals.ad_orders  / totals.clicks).toFixed(4)     : null,
+    cpc:    totals.clicks     > 0 ? +(totals.ad_spend   / totals.clicks).toFixed(2)     : null,
+    roas:   totals.ad_spend   > 0 ? +(totals.ad_sales   / totals.ad_spend).toFixed(2)   : null,
   }
+}
+
+/** YYYY-MM-DD 日期减 N 天 */
+function subtractDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() - n)
+  return d.toISOString().slice(0, 10)
 }

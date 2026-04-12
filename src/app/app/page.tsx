@@ -1,15 +1,27 @@
-import AppInitializer from "@/components/layout/AppInitializer";
-import ProductRail from "@/components/layout/ProductRail";
-import FunctionPanel from "@/components/layout/FunctionPanel";
-import MainPanel from "@/components/layout/MainPanel";
+import AppInitializer  from "@/components/layout/AppInitializer";
+import ProductRail     from "@/components/layout/ProductRail";
+import FunctionPanel   from "@/components/layout/FunctionPanel";
+import MainPanel       from "@/components/layout/MainPanel";
+import ContextPanel    from "@/components/layout/ContextPanel";
+import CategoryGuard   from "@/components/layout/CategoryGuard";
 
 export default function AppPage() {
   return (
     <AppInitializer>
-      <div className="flex" style={{ height: "100vh", overflow: "hidden" }}>
+      <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#f5f6f8" }}>
+        {/* Left sidebar — always visible */}
         <ProductRail />
-        <FunctionPanel />
+
+        {/* Function tabs — only when a category is active */}
+        <CategoryGuard>
+          <FunctionPanel />
+        </CategoryGuard>
+
+        {/* Main content area */}
         <MainPanel />
+
+        {/* Right context panel — always visible, collapsible */}
+        <ContextPanel />
       </div>
     </AppInitializer>
   );
