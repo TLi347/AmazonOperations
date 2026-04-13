@@ -212,6 +212,7 @@ export default function OverviewPanel() {
       dataKey: "gmv",
       delta: calcDelta(data.grandTotal.gmv, data.prevWeekTotal.gmv),
       sparkColor: "#2563eb",
+      hasChart: true,
     },
     {
       label: "总订单",
@@ -219,6 +220,7 @@ export default function OverviewPanel() {
       dataKey: "orders",
       delta: calcDelta(data.grandTotal.orders, data.prevWeekTotal.orders),
       sparkColor: "#7c3aed",
+      hasChart: false,
     },
     {
       label: "广告花费",
@@ -226,6 +228,7 @@ export default function OverviewPanel() {
       dataKey: "ad_spend",
       delta: calcDelta(data.grandTotal.ad_spend, data.prevWeekTotal.ad_spend),
       sparkColor: "#f59e0b",
+      hasChart: false,
     },
     {
       label: "综合 ACoS",
@@ -241,6 +244,7 @@ export default function OverviewPanel() {
         };
       })(),
       sparkColor: "#06b6d4",
+      hasChart: true,
     },
   ];
 
@@ -256,7 +260,7 @@ export default function OverviewPanel() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         {metrics.map((metric) => (
           <Card key={metric.label} className="overflow-hidden">
-            <CardContent className="p-4 pb-0">
+            <CardContent className={cn("p-4", metric.hasChart ? "pb-0" : "pb-4")}>
               <div className="flex items-center gap-1.5 mb-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{metric.label}</p>
               </div>
@@ -276,14 +280,16 @@ export default function OverviewPanel() {
                 )}
               </div>
             </CardContent>
-            {/* Chart fused to card bottom */}
-            <div className="px-1 -mb-1">
-              <MetricChart
-                data={dailyTotalsWithAcos}
-                dataKey={metric.dataKey}
-                color={metric.sparkColor}
-              />
-            </div>
+            {/* Chart fused to card bottom — only for decision-useful metrics */}
+            {metric.hasChart && (
+              <div className="px-1 -mb-1">
+                <MetricChart
+                  data={dailyTotalsWithAcos}
+                  dataKey={metric.dataKey}
+                  color={metric.sparkColor}
+                />
+              </div>
+            )}
           </Card>
         ))}
       </div>

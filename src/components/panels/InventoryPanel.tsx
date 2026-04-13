@@ -5,10 +5,12 @@ import { useAppStore, getCategoryKey } from "@/store/appStore";
 import { AlertTriangle, Package } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PanelSkeleton } from "@/components/ui/panel-skeleton";
+import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRow = Record<string, any>;
@@ -143,8 +145,25 @@ export default function InventoryPanel() {
                     <TableCell className="font-mono text-sm">
                       {typeof inbound === "number" ? inbound.toLocaleString() : inbound}
                     </TableCell>
-                    <TableCell className={`font-mono text-sm font-semibold ${textClass}`}>
-                      {typeof days === "number" ? `${days}天` : days}
+                    <TableCell>
+                      {typeof days === "number" ? (
+                        <div className="flex items-center gap-2">
+                          <Progress
+                            value={Math.min((days / 90) * 100, 100)}
+                            className={cn(
+                              "h-2 w-16",
+                              days < 30 ? "[&>div]:bg-destructive" :
+                              days < 45 ? "[&>div]:bg-amber-500" :
+                              "[&>div]:bg-emerald-500"
+                            )}
+                          />
+                          <span className={cn("font-mono text-xs font-semibold", textClass)}>
+                            {days}天
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-mono text-sm text-muted-foreground">{days}</span>
+                      )}
                     </TableCell>
                     <TableCell className="font-mono text-sm">
                       {typeof daily === "number" ? daily.toFixed(1) : daily}

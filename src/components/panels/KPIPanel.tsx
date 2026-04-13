@@ -3,12 +3,11 @@
 import { useEffect, useState } from "react";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
 import { BarChart3 } from "lucide-react";
-import { Area, AreaChart, Bar, BarChart } from "recharts";
+import { Area, ComposedChart, CartesianGrid, Line, XAxis, YAxis } from "recharts";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Card, CardContent } from "@/components/ui/card";
 import { PanelSkeleton } from "@/components/ui/panel-skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/table";
@@ -57,35 +56,24 @@ const WINDOWS: { id: Window; label: string }[] = [
 interface MetricDef {
   label: string;
   value: (t: AsinRow) => string;
-  raw: (t: AsinRow) => number;
-  color: string;
   warn?: (t: AsinRow) => boolean;
 }
 
 const METRIC_DEFS: MetricDef[] = [
-  { label: "GMV",    value: t => cur(t.gmv),      raw: t => t.gmv,      color: "#2563eb" },
-  { label: "订单量",  value: t => num(t.orders),    raw: t => t.orders,   color: "#7c3aed" },
-  { label: "广告花费", value: t => cur(t.ad_spend),  raw: t => t.ad_spend, color: "#f59e0b" },
-  { label: "ACoS",   value: t => pct(t.acos),      raw: t => (t.acos ?? 0) * 100, color: "#06b6d4", warn: t => t.acos != null && t.acos > 0.5 },
-  { label: "CTR",    value: t => pct(t.ctr),        raw: t => (t.ctr ?? 0) * 100,  color: "#8b5cf6" },
-  { label: "ROAS",   value: t => t.roas != null ? t.roas.toFixed(2) : "—", raw: t => t.roas ?? 0, color: "#10b981" },
+  { label: "GMV",    value: t => cur(t.gmv) },
+  { label: "订单量",  value: t => num(t.orders) },
+  { label: "广告花费", value: t => cur(t.ad_spend) },
+  { label: "ACoS",   value: t => pct(t.acos), warn: t => t.acos != null && t.acos > 0.5 },
+  { label: "CTR",    value: t => pct(t.ctr) },
+  { label: "ROAS",   value: t => t.roas != null ? t.roas.toFixed(2) : "—" },
 ];
 
-/* ---------- Mini chart for ASIN comparison ---------- */
+/* ---------- ACoS & GMV trend chart config ---------- */
 
-const barConfig = { value: { label: "Value", color: "#3b82f6" } } satisfies ChartConfig;
-
-function AsinBarChart({ data, dataKey }: { data: Array<{ name: string; value: number }>; dataKey: string }) {
-  if (data.length === 0) return null;
-  return (
-    <ChartContainer config={barConfig} className="h-24 w-full">
-      <BarChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-        <ChartTooltip content={<ChartTooltipContent />} />
-        <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ChartContainer>
-  );
-}
+const trendConfig = {
+  acos: { label: "ACoS", color: "#06b6d4" },
+  gmv: { label: "GMV", color: "#2563eb" },
+} satisfies ChartConfig;
 
 /* ---------- Main component ---------- */
 
@@ -96,6 +84,7 @@ export default function KPIPanel() {
   const [data, setData] = useState<KPIData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dailyData, setDailyData] = useState<Array<{ date: string; acos: number; gmv: number }>>([]);
 
   useEffect(() => {
     setLoading(true);
@@ -111,6 +100,24 @@ export default function KPIPanel() {
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, [activeCategoryKey, window]);
+
+  /* Fetch daily trend data for ACoS & GMV chart */
+  useEffect(() => {
+    fetch("/api/features/overview")
+      .then(r => r.json())
+      .then(d => {
+        if (d.dailyTotals) {
+          setDailyData(
+            d.dailyTotals.map((day: { date: string; ad_spend: number; ad_sales: number; gmv: number }) => ({
+              date: day.date.slice(5),
+              acos: day.ad_sales > 0 ? (day.ad_spend / day.ad_sales) * 100 : 0,
+              gmv: day.gmv,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-background">
@@ -154,8 +161,8 @@ export default function KPIPanel() {
             {METRIC_DEFS.map(metric => {
               const isWarn = metric.warn?.(data.total);
               return (
-                <Card key={metric.label} className="overflow-hidden">
-                  <CardContent className="p-3 pb-0">
+                <Card key={metric.label}>
+                  <CardContent className="p-3">
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                       {metric.label}
                     </p>
@@ -166,17 +173,35 @@ export default function KPIPanel() {
                       {metric.value(data.total)}
                     </p>
                   </CardContent>
-                  {/* Mini area chart showing ASIN breakdown as bars */}
-                  <div className="px-1 mt-1">
-                    <AsinBarChart
-                      data={data.byAsin.map(a => ({ name: a.asin.slice(-5), value: metric.raw(a) }))}
-                      dataKey="value"
-                    />
-                  </div>
                 </Card>
               );
             })}
           </div>
+
+          {/* ACoS & GMV Trend Chart */}
+          {dailyData.length > 0 && (
+            <Card className="mb-6">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">ACoS & GMV 趋势</p>
+                    <p className="text-xs text-muted-foreground">近 7 天每日变化</p>
+                  </div>
+                </div>
+                <ChartContainer config={trendConfig} className="h-48 w-full">
+                  <ComposedChart data={dailyData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" className="text-xs" tick={{ fontSize: 11 }} />
+                    <YAxis yAxisId="acos" orientation="left" tick={{ fontSize: 11 }} unit="%" domain={[0, 'auto']} />
+                    <YAxis yAxisId="gmv" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Area yAxisId="gmv" type="natural" dataKey="gmv" stroke="var(--color-gmv)" fill="var(--color-gmv)" fillOpacity={0.1} strokeWidth={2} dot={false} />
+                    <Line yAxisId="acos" type="natural" dataKey="acos" stroke="var(--color-acos)" strokeWidth={2} dot={{ r: 3 }} />
+                  </ComposedChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Per-ASIN detail table */}
           {data.byAsin.length === 0 ? (
