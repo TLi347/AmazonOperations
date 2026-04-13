@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, BarChart3 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PanelSkeleton } from "@/components/ui/panel-skeleton";
 import { Button } from "@/components/ui/button";
@@ -108,11 +108,16 @@ export default function KPIPanel() {
       {loading && <PanelSkeleton />}
 
       {!loading && error && (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <AlertTriangle size={32} className="mx-auto mb-2 text-amber-600" />
-            <p className="text-sm text-muted-foreground">{error}</p>
-          </div>
+        <div className="flex items-center justify-center h-full p-8">
+          <Card className="max-w-sm">
+            <CardContent className="text-center space-y-3 py-8">
+              <BarChart3 size={40} className="mx-auto text-muted-foreground/50" />
+              <h3 className="font-semibold text-foreground">暂无数据</h3>
+              <p className="text-sm text-muted-foreground">
+                上传产品报表后，KPI 汇总将自动计算
+              </p>
+            </CardContent>
+          </Card>
         </div>
       )}
 

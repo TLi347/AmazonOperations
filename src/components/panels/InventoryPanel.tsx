@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
 import { AlertTriangle, Package } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { PanelSkeleton } from "@/components/ui/panel-skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -81,17 +81,31 @@ export default function InventoryPanel() {
       {loading && <PanelSkeleton />}
 
       {!loading && error && (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <AlertTriangle size={32} className="mx-auto mb-2 text-amber-600" />
-            <p className="text-sm text-muted-foreground">{error}</p>
-            <p className="text-xs mt-1 text-muted-foreground">请先上传库存报表文件</p>
-          </div>
+        <div className="flex items-center justify-center h-full p-8">
+          <Card className="max-w-sm">
+            <CardContent className="text-center space-y-3 py-8">
+              <Package size={40} className="mx-auto text-muted-foreground/50" />
+              <h3 className="font-semibold text-foreground">暂无数据</h3>
+              <p className="text-sm text-muted-foreground">
+                上传库存报表后，库存健康状况将自动分析
+              </p>
+            </CardContent>
+          </Card>
         </div>
       )}
 
       {!loading && data && data.rows.length === 0 && (
-        <p className="text-center text-sm py-10 text-muted-foreground">无库存数据</p>
+        <div className="flex items-center justify-center h-full p-8">
+          <Card className="max-w-sm">
+            <CardContent className="text-center space-y-3 py-8">
+              <Package size={40} className="mx-auto text-muted-foreground/50" />
+              <h3 className="font-semibold text-foreground">暂无数据</h3>
+              <p className="text-sm text-muted-foreground">
+                上传库存报表后，库存健康状况将自动分析
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {!loading && data && data.rows.length > 0 && (

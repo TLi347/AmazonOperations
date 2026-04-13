@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 
-import { AlertTriangle, TrendingUp, DollarSign, ShoppingCart, Bed, Wrench, Bike, Package } from "lucide-react";
+import { AlertTriangle, TrendingUp, DollarSign, ShoppingCart, Bed, Wrench, Bike, Package, FileUp } from "lucide-react";
 import { PanelSkeleton } from "@/components/ui/panel-skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -74,12 +74,16 @@ export default function OverviewPanel() {
 
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <AlertTriangle size={32} className="mx-auto mb-2 text-amber-600" />
-          <p className="text-sm text-muted-foreground">{error ?? "无法加载数据"}</p>
-          <p className="text-xs mt-1 text-muted-foreground">请先上传产品报表文件</p>
-        </div>
+      <div className="flex items-center justify-center h-full p-8">
+        <Card className="max-w-sm">
+          <CardContent className="text-center space-y-3 py-8">
+            <FileUp size={40} className="mx-auto text-muted-foreground/50" />
+            <h3 className="font-semibold text-foreground">暂无数据</h3>
+            <p className="text-sm text-muted-foreground">
+              上传产品报表后，账号总览将自动显示
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }

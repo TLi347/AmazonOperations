@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Upload } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ export default function ContextPanel() {
   const [isOpen, setIsOpen]       = useState(true);
   const [files, setFiles]         = useState<UploadedFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(() => {
@@ -50,12 +51,8 @@ export default function ContextPanel() {
 
   useEffect(() => { loadFiles(); }, [loadFiles]);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
+  const handleUploadFile = useCallback(async (file: File) => {
     setUploading(true);
-
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -70,6 +67,13 @@ export default function ContextPanel() {
     } finally {
       setUploading(false);
     }
+  }, [loadFiles]);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    handleUploadFile(file);
   };
 
   /* ── Collapsed ── */
@@ -89,7 +93,31 @@ export default function ContextPanel() {
 
   /* ── Expanded ── */
   return (
-    <div className="w-64 shrink-0 border-l border-border bg-muted flex flex-col">
+    <div
+      className="w-64 shrink-0 border-l border-border bg-muted flex flex-col relative"
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file && file.name.endsWith('.xlsx')) {
+          handleUploadFile(file);
+        } else {
+          toast.error("仅支持 .xlsx 文件");
+        }
+      }}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-lg">
+          <div className="text-center">
+            <Upload size={32} className="mx-auto mb-2 text-primary" />
+            <p className="text-sm font-medium text-primary">拖拽 XLSX 文件到此处</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="px-3.5 pt-3.5 pb-2.5 border-b border-border flex justify-between items-center">
         <div>

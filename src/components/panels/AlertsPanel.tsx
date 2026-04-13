@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
-import { AlertTriangle, CheckCircle, Lightbulb } from "lucide-react";
+import { AlertTriangle, Bell, CheckCircle, Lightbulb } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PanelSkeleton } from "@/components/ui/panel-skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -114,21 +114,30 @@ export default function AlertsPanel() {
       {loading && <PanelSkeleton />}
 
       {!loading && error && (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <AlertTriangle size={32} className="mx-auto mb-2 text-amber-600" />
-            <p className="text-sm text-muted-foreground">{error}</p>
-          </div>
+        <div className="flex items-center justify-center h-full p-8">
+          <Card className="max-w-sm">
+            <CardContent className="text-center space-y-3 py-8">
+              <Bell size={40} className="mx-auto text-muted-foreground/50" />
+              <h3 className="font-semibold text-foreground">暂无告警</h3>
+              <p className="text-sm text-muted-foreground">
+                暂无告警，上传最新报表后将自动检测
+              </p>
+            </CardContent>
+          </Card>
         </div>
       )}
 
       {!loading && !error && alerts.length === 0 && (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <CheckCircle size={32} className="mx-auto mb-2 text-emerald-600" />
-            <p className="text-sm text-muted-foreground">暂无告警</p>
-            <p className="text-xs mt-1 text-muted-foreground">请先上传产品报表以生成告警分析</p>
-          </div>
+        <div className="flex items-center justify-center h-full p-8">
+          <Card className="max-w-sm">
+            <CardContent className="text-center space-y-3 py-8">
+              <Bell size={40} className="mx-auto text-muted-foreground/50" />
+              <h3 className="font-semibold text-foreground">暂无告警</h3>
+              <p className="text-sm text-muted-foreground">
+                暂无告警，上传最新报表后将自动检测
+              </p>
+            </CardContent>
+          </Card>
         </div>
       )}
 
