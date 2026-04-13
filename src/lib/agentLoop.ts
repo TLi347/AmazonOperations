@@ -17,7 +17,11 @@
  *   { type: "error",        message: string }
  */
 
-import { query } from "@anthropic-ai/claude-agent-sdk"
+import {
+  query,
+  type SDKSystemMessage,
+  type SDKResultMessage,
+} from "@anthropic-ai/claude-agent-sdk"
 import { yzOpsMcpServer } from "./mcpTools"
 
 const MAX_TURNS = 10
@@ -109,58 +113,65 @@ export async function runAgentLoop(
       },
     })) {
       // ── system init（仅一次）───────────────────────────────────────────
-      if (message.type === "system" && (message as any).subtype === "init") {
-        resultSessionId = (message as any).session_id as string
+      if (message.type === "system") {
+        const sysMsg = message as SDKSystemMessage
+        resultSessionId = sysMsg.session_id
         onEvent({ type: "session_start", sessionId })
       }
 
-      // ── token 级流式（stream_event）────────────────────────────────────
-      if (message.type === "stream_event" && "event" in message) {
-        const event = (message as any).event
-        if (event?.type === "content_block_delta" && event?.delta?.type === "text_delta") {
-          const text = event.delta.text as string
-          fullText += text
+      // ── token 级流式（stream_event = SDKPartialAssistantMessage）──────────
+      if (message.type === "stream_event") {
+        // message.event 类型为 BetaRawMessageStreamEvent（来自 @anthropic-ai/sdk），
+        // 此处仅访问 discriminated union 的已知字段，用最小 cast 避免深层引入
+        const event = message.event as { type: string; delta?: { type: string; text?: string } }
+        if (event?.type === "content_block_delta" && event.delta?.type === "text_delta" && event.delta.text != null) {
+          fullText += event.delta.text
           hasStreamedText = true
-          onEvent({ type: "text_delta", delta: text })
+          onEvent({ type: "text_delta", delta: event.delta.text })
         }
       }
 
       // ── assistant 消息（含 tool_use blocks）─────────────────────────────
-      if (message.type === "assistant" && "message" in message) {
-        const content = (message as any).message?.content
-        if (Array.isArray(content)) {
-          for (const block of content) {
-            if (block.type === "tool_use") {
-              const name  = shortToolName(block.name)
-              const input = block.input as Record<string, unknown>
-              pendingTools.set(block.id, { name, input })
-              onEvent({ type: "tool_start", tool: name, input })
-            }
-            // 仅在非流式模式下收集文字（流式已通过 stream_event 收集完毕）
-            if (block.type === "text" && !hasStreamedText) {
-              fullText += block.text
-            }
+      if (message.type === "assistant") {
+        // message.message 类型为 BetaMessage，content 为 BetaContentBlock[]
+        const content = (message.message?.content ?? []) as Array<{
+          type: string; id?: string; name?: string; input?: unknown; text?: string
+        }>
+        let hasPendingToolUse = false
+        for (const block of content) {
+          if (block.type === "tool_use" && block.id && block.name) {
+            hasPendingToolUse = true
+            const name  = shortToolName(block.name)
+            const input = (block.input ?? {}) as Record<string, unknown>
+            pendingTools.set(block.id, { name, input })
+            onEvent({ type: "tool_start", tool: name, input })
           }
-          // assistant 消息处理完后，重置流式标记（下一轮工具调用后新的回复需要重新收集）
+          // 仅在非流式模式下收集文字（流式已通过 stream_event 收集完毕）
+          if (block.type === "text" && block.text && !hasStreamedText) {
+            fullText += block.text
+          }
+        }
+        // 仅当本轮有工具调用时重置流式标记，下一轮 LLM 回复需要重新收集
+        if (hasPendingToolUse) {
           hasStreamedText = false
         }
       }
 
       // ── user 消息（含 tool_result）───────────────────────────────────────
-      if (message.type === "user" && "message" in message) {
-        const content = (message as any).message?.content
-        if (Array.isArray(content)) {
-          for (const block of content) {
-            if (block.type === "tool_result" && block.tool_use_id) {
-              const pending = pendingTools.get(block.tool_use_id)
-              if (pending) {
-                const resultText    = extractToolResultText(block.content)
-                const resultSummary = buildResultSummary(pending.name, resultText)
-
-                toolCalls.push({ tool: pending.name, input: pending.input, resultSummary })
-                onEvent({ type: "tool_done", tool: pending.name, resultSummary })
-                pendingTools.delete(block.tool_use_id)
-              }
+      if (message.type === "user") {
+        // message.message 类型为 MessageParam，content 为 ContentBlockParam[]
+        const content = (message.message?.content ?? []) as Array<{
+          type: string; tool_use_id?: string; content?: unknown
+        }>
+        for (const block of content) {
+          if (block.type === "tool_result" && block.tool_use_id) {
+            const pending = pendingTools.get(block.tool_use_id)
+            if (pending) {
+              const resultText    = extractToolResultText(block.content)
+              const resultSummary = buildResultSummary(pending.name, resultText)
+              toolCalls.push({ tool: pending.name, input: pending.input, resultSummary })
+              onEvent({ type: "tool_done", tool: pending.name, resultSummary })
+              pendingTools.delete(block.tool_use_id)
             }
           }
         }
@@ -168,7 +179,7 @@ export async function runAgentLoop(
 
       // ── result 消息（完成）──────────────────────────────────────────────
       if (message.type === "result") {
-        const result = message as any
+        const result = message as SDKResultMessage
         resultSessionId = result.session_id ?? resultSessionId
 
         if (result.subtype === "success") {
@@ -177,7 +188,8 @@ export async function runAgentLoop(
             fullText = result.result
           }
         } else {
-          const errorMsg = result.errors?.join("; ") ?? result.subtype ?? "Agent 执行出错"
+          const errors = (result as { errors?: string[] }).errors
+          const errorMsg = errors?.join("; ") ?? result.subtype ?? "Agent 执行出错"
           onEvent({ type: "error", message: errorMsg })
         }
       }
