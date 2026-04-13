@@ -7,6 +7,7 @@ import KPIPanel       from "@/components/panels/KPIPanel";
 import AlertsPanel    from "@/components/panels/AlertsPanel";
 import AdsPanel       from "@/components/panels/AdsPanel";
 import InventoryPanel from "@/components/panels/InventoryPanel";
+import { ErrorBoundary } from "@/components/layout/ErrorBoundary";
 
 export default function MainPanel() {
   const { activeNav, activeFuncTab } = useAppStore();
@@ -17,12 +18,12 @@ export default function MainPanel() {
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Panel content */}
       <div className="flex-1 overflow-auto bg-background">
-        {activeNav === "overview" && <OverviewPanel key="overview" />}
-        {activeNav === "chat"     && <ChatPanel     key="chat" />}
-        {isCategory && activeFuncTab === "kpi"       && <KPIPanel       key={categoryKey} />}
-        {isCategory && activeFuncTab === "alerts"    && <AlertsPanel    key={categoryKey} />}
-        {isCategory && activeFuncTab === "ads"       && <AdsPanel       key={categoryKey} />}
-        {isCategory && activeFuncTab === "inventory" && <InventoryPanel key={categoryKey} />}
+        {activeNav === "overview" && <ErrorBoundary><OverviewPanel key="overview" /></ErrorBoundary>}
+        {activeNav === "chat"     && <ErrorBoundary><ChatPanel     key="chat" /></ErrorBoundary>}
+        {isCategory && activeFuncTab === "kpi"       && <ErrorBoundary><KPIPanel       key={categoryKey} /></ErrorBoundary>}
+        {isCategory && activeFuncTab === "alerts"    && <ErrorBoundary><AlertsPanel    key={categoryKey} /></ErrorBoundary>}
+        {isCategory && activeFuncTab === "ads"       && <ErrorBoundary><AdsPanel       key={categoryKey} /></ErrorBoundary>}
+        {isCategory && activeFuncTab === "inventory" && <ErrorBoundary><InventoryPanel key={categoryKey} /></ErrorBoundary>}
       </div>
     </div>
   );

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
-import { Loader2, AlertTriangle, Package } from "lucide-react";
+import { AlertTriangle, Package } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { PanelSkeleton } from "@/components/ui/panel-skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
@@ -77,12 +78,7 @@ export default function InventoryPanel() {
         <Package size={20} className="text-muted-foreground" />
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center py-20 text-muted-foreground">
-          <Loader2 size={20} className="animate-spin mr-2" />
-          <span className="text-sm">加载中…</span>
-        </div>
-      )}
+      {loading && <PanelSkeleton />}
 
       {!loading && error && (
         <div className="flex items-center justify-center py-20">

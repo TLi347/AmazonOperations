@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
 
 interface UploadedFile {
   id:           string;
@@ -38,7 +39,6 @@ export default function ContextPanel() {
   const [isOpen, setIsOpen]       = useState(true);
   const [files, setFiles]         = useState<UploadedFile[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(() => {
@@ -55,7 +55,6 @@ export default function ContextPanel() {
     if (!file) return;
     e.target.value = "";
     setUploading(true);
-    setUploadMsg(null);
 
     try {
       const fd = new FormData();
@@ -64,13 +63,12 @@ export default function ContextPanel() {
       const data = await res.json() as { fileType?: string; rowCount?: number; error?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? "上传失败");
       const label = `${FILE_TYPE_LABELS[data.fileType ?? ""] ?? data.fileType} · ${data.rowCount ?? 0} 行`;
-      setUploadMsg({ ok: true, text: label });
+      toast.success("文件上传成功", { description: label });
       loadFiles();
     } catch (err) {
-      setUploadMsg({ ok: false, text: err instanceof Error ? err.message : "上传失败" });
+      toast.error("上传失败", { description: err instanceof Error ? err.message : "上传失败" });
     } finally {
       setUploading(false);
-      setTimeout(() => setUploadMsg(null), 5000);
     }
   };
 
@@ -159,19 +157,6 @@ export default function ContextPanel() {
           ))}
         </div>
       </ScrollArea>
-
-      {/* Upload message */}
-      {uploadMsg && (
-        <div
-          className={`mx-2.5 mb-1 px-2.5 py-1.5 rounded-md text-[10px] ${
-            uploadMsg.ok
-              ? "bg-emerald-500/10 text-emerald-600"
-              : "bg-destructive/10 text-destructive"
-          }`}
-        >
-          {uploadMsg.ok ? "\u2713" : "\u2717"} {uploadMsg.text}
-        </div>
-      )}
 
       {/* Add file button */}
       <div className="px-2.5 pt-2.5 pb-3 border-t border-border">

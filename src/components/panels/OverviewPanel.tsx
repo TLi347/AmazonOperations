@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/appStore";
 
-import { AlertTriangle, TrendingUp, DollarSign, ShoppingCart, Loader2, Bed, Wrench, Bike, Package } from "lucide-react";
+import { AlertTriangle, TrendingUp, DollarSign, ShoppingCart, Bed, Wrench, Bike, Package } from "lucide-react";
+import { PanelSkeleton } from "@/components/ui/panel-skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,12 +69,7 @@ export default function OverviewPanel() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
-        <Loader2 size={20} className="animate-spin mr-2" />
-        <span className="text-sm">加载中…</span>
-      </div>
-    );
+    return <PanelSkeleton />;
   }
 
   if (error || !data) {

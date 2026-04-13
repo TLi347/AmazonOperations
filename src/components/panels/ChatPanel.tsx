@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -170,6 +171,7 @@ export default function ChatPanel() {
     setMessages([])
     setStreamingText("")
     setToolBubbles([])
+    toast.success("新对话已创建")
   }, [])
 
   const deleteSession = useCallback(async (sessionId: string) => {
@@ -179,6 +181,7 @@ export default function ChatPanel() {
       setActiveSessionId(null)
       setMessages([])
     }
+    toast.success("对话已删除")
   }, [activeSessionId])
 
   const startRename = (session: SessionMeta, e: React.MouseEvent) => {
@@ -299,6 +302,7 @@ export default function ChatPanel() {
         role:    "assistant" as const,
         content: `网络错误：${String(err)}`,
       }])
+      toast.error("网络错误", { description: String(err) })
       finish()
     }
   }, [isStreaming, activeSessionId, loadSessions, selectedModel])

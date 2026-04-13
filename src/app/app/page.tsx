@@ -4,6 +4,7 @@ import FunctionPanel   from "@/components/layout/FunctionPanel";
 import MainPanel       from "@/components/layout/MainPanel";
 import ContextPanel    from "@/components/layout/ContextPanel";
 import CategoryGuard   from "@/components/layout/CategoryGuard";
+import { Toaster }     from "@/components/ui/sonner";
 
 export default function AppPage() {
   return (
@@ -23,6 +24,7 @@ export default function AppPage() {
         {/* Right context panel — always visible, collapsible */}
         <ContextPanel />
       </div>
+      <Toaster position="top-right" richColors />
     </AppInitializer>
   );
 }
