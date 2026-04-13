@@ -1,7 +1,7 @@
 /**
  * lib/agentLoop.ts
  *
- * 基于 Claude Agent SDK query() 的 Agent 执行循环。
+ * 基于 Claude Agent SDK query() 的 Agent 执行层。
  *
  * SDK 自动处理工具调用循环，本文件负责：
  * 1. 调用 query() 并传入 MCP 工具 + system prompt
@@ -43,11 +43,29 @@ function shortToolName(name: string): string {
 }
 
 /**
- * 构建工具结果摘要（从 tool_result content 中提取）
+ * 从 tool_result 的 content 中提取纯文本
+ * SDK 返回的 content 可能是 string、content block 数组或嵌套结构
  */
-function buildResultSummary(toolName: string, content: string): string {
+function extractToolResultText(content: unknown): string {
+  if (typeof content === "string") return content
+  if (Array.isArray(content)) {
+    return content
+      .map(block => {
+        if (typeof block === "string") return block
+        if (block?.type === "text" && typeof block.text === "string") return block.text
+        return JSON.stringify(block)
+      })
+      .join("")
+  }
+  return JSON.stringify(content)
+}
+
+/**
+ * 构建工具结果摘要
+ */
+function buildResultSummary(toolName: string, resultText: string): string {
   try {
-    const obj = JSON.parse(content)
+    const obj = JSON.parse(resultText)
     if (obj.error) return `错误: ${obj.error}`
     if (Array.isArray(obj)) return `返回 ${obj.length} 条记录`
     if (obj.rows && Array.isArray(obj.rows)) return `返回 ${obj.rows.length} 条记录（共 ${obj.total ?? obj.rows.length} 条）`
@@ -55,7 +73,7 @@ function buildResultSummary(toolName: string, content: string): string {
     const s = JSON.stringify(obj)
     return s.length > 200 ? s.slice(0, 200) + "…" : s
   } catch {
-    return content.slice(0, 200)
+    return resultText.length > 200 ? resultText.slice(0, 200) + "…" : resultText
   }
 }
 
@@ -67,8 +85,9 @@ export async function runAgentLoop(
   sdkSessionId?:  string | null,
 ): Promise<AgentLoopResult> {
   const toolCalls: ToolCallRecord[] = []
-  let   fullText       = ""
-  let   resultSessionId: string | null = sdkSessionId ?? null
+  let   fullText        = ""
+  let   resultSessionId = sdkSessionId ?? null
+  let   hasStreamedText = false  // 标记是否通过 stream_event 收到过文字
 
   // 跟踪当前活跃的 tool_use，用于匹配 tool_result
   const pendingTools = new Map<string, { name: string; input: Record<string, unknown> }>()
@@ -82,13 +101,13 @@ export async function runAgentLoop(
         systemPrompt:           systemPrompt,
         includePartialMessages: true,
         permissionMode:         "bypassPermissions",
-        tools:                  [],                          // 移除所有内置工具
+        tools:                  [],
         mcpServers:             { "yz-ops": yzOpsMcpServer },
         allowedTools:           ["mcp__yz-ops__*"],
         ...(sdkSessionId ? { resume: sdkSessionId } : {}),
       },
     })) {
-      // ── system init（仅 subtype=init 时触发一次）──────────────────────
+      // ── system init（仅一次）───────────────────────────────────────────
       if (message.type === "system" && (message as any).subtype === "init") {
         resultSessionId = (message as any).session_id as string
         onEvent({ type: "session_start", sessionId })
@@ -100,6 +119,7 @@ export async function runAgentLoop(
         if (event?.type === "content_block_delta" && event?.delta?.type === "text_delta") {
           const text = event.delta.text as string
           fullText += text
+          hasStreamedText = true
           onEvent({ type: "text_delta", delta: text })
         }
       }
@@ -115,11 +135,13 @@ export async function runAgentLoop(
               pendingTools.set(block.id, { name, input })
               onEvent({ type: "tool_start", tool: name, input })
             }
-            // 非流式模式下收集文字（流式模式下已通过 stream_event 收集）
-            if (block.type === "text" && !fullText.includes(block.text)) {
+            // 仅在非流式模式下收集文字（流式已通过 stream_event 收集完毕）
+            if (block.type === "text" && !hasStreamedText) {
               fullText += block.text
             }
           }
+          // assistant 消息处理完后，重置流式标记（下一轮工具调用后新的回复需要重新收集）
+          hasStreamedText = false
         }
       }
 
@@ -131,9 +153,7 @@ export async function runAgentLoop(
             if (block.type === "tool_result" && block.tool_use_id) {
               const pending = pendingTools.get(block.tool_use_id)
               if (pending) {
-                const resultText = typeof block.content === "string"
-                  ? block.content
-                  : JSON.stringify(block.content)
+                const resultText    = extractToolResultText(block.content)
                 const resultSummary = buildResultSummary(pending.name, resultText)
 
                 toolCalls.push({ tool: pending.name, input: pending.input, resultSummary })
@@ -151,12 +171,11 @@ export async function runAgentLoop(
         resultSessionId = result.session_id ?? resultSessionId
 
         if (result.subtype === "success") {
-          // 如果流式没有收集到文字，用 result.result 兜底
+          // 兜底：如果流式和 assistant 都没收集到文字，用 result.result
           if (!fullText && result.result) {
             fullText = result.result
           }
         } else {
-          // error_max_turns / error_during_execution / error_max_budget_usd
           const errorMsg = result.errors?.join("; ") ?? result.subtype ?? "Agent 执行出错"
           onEvent({ type: "error", message: errorMsg })
         }

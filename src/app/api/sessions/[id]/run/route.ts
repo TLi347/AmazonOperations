@@ -32,11 +32,9 @@ export async function POST(
   // 异步执行 agent loop（不阻塞 SSE 响应返回）
   ;(async () => {
     try {
-      // 1. 查询 Session，获取 SDK session ID（如果有）
+      // 1. 查询 Session，获取 SDK session ID（用于 resume 续接多轮对话）
       const session = await db.session.findUnique({ where: { id: sessionId } })
-      // sdkSessionId 暂存在 Session 表中（可选字段，后续可加）
-      // MVP 阶段每次新建 SDK session，不做 resume
-      const sdkSessionId = null
+      const sdkSessionId = session?.sdkSessionId ?? null
 
       // 2. 构建 System Prompt（每次重新拉取，感知新上传文件）
       const systemPrompt = await buildAgentSystemPrompt()
@@ -50,7 +48,15 @@ export async function POST(
         sdkSessionId,
       )
 
-      // 4. 持久化：写入 user + assistant 消息
+      // 4. 持久化 SDK session ID（首次对话后写入，后续用于 resume）
+      if (result.sdkSessionId && result.sdkSessionId !== sdkSessionId) {
+        await db.session.update({
+          where: { id: sessionId },
+          data:  { sdkSessionId: result.sdkSessionId },
+        })
+      }
+
+      // 5. 持久化：写入 user + assistant 消息
       const [, savedAssistant] = await Promise.all([
         db.message.create({
           data: { sessionId, role: "user", content: userMessage },

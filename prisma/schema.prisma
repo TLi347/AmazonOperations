@@ -70,11 +70,12 @@ model Alert {
 
 // Chat 对话 Session
 model Session {
-  id        String    @id @default(cuid())
-  title     String    @default("新对话")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  messages  Message[]
+  id           String    @id @default(cuid())
+  title        String    @default("新对话")
+  sdkSessionId String?            // Agent SDK session ID，用于 resume 续接多轮对话
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  messages     Message[]
 }
 
 // Session 内的消息（user / assistant 轮次）
