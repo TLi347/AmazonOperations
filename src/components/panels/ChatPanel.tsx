@@ -9,112 +9,53 @@ import {
 import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
-// ── Markdown renderer ──────────────────────────────────────────────────────────
-
-function parseInline(text: string): React.ReactNode {
-  const regex = /(`[^`]+`|\*\*[^*]+\*\*)/g
-  const parts: React.ReactNode[] = []
-  let lastIndex = 0
-  let match: RegExpExecArray | null
-
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
-    const token = match[0]
-    if (token.startsWith("**")) {
-      parts.push(<strong key={match.index}>{token.slice(2, -2)}</strong>)
-    } else {
-      parts.push(
-        <code key={match.index} style={{ background: "#f0eeec", padding: "1px 4px", borderRadius: 3, fontFamily: "'IBM Plex Mono', monospace", fontSize: "0.85em" }}>
-          {token.slice(1, -1)}
-        </code>
-      )
-    }
-    lastIndex = match.index + token.length
-  }
-  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
-  return parts.length === 0 ? "" : parts.length === 1 && typeof parts[0] === "string" ? parts[0] : <>{parts}</>
-}
-
-function MarkdownContent({ content }: { content: string }) {
-  const lines = content.split("\n")
-  const elements: React.ReactNode[] = []
-  let i = 0, k = 0
-
-  while (i < lines.length) {
-    const line = lines[i]
-
-    if (line.startsWith("### ")) { elements.push(<h3 key={k++} style={{ margin: "10px 0 3px", fontSize: 13, fontWeight: 700 }}>{parseInline(line.slice(4))}</h3>); i++; continue }
-    if (line.startsWith("## "))  { elements.push(<h2 key={k++} style={{ margin: "12px 0 4px", fontSize: 14, fontWeight: 700 }}>{parseInline(line.slice(3))}</h2>); i++; continue }
-    if (line.startsWith("# "))   { elements.push(<h1 key={k++} style={{ margin: "14px 0 4px", fontSize: 15, fontWeight: 800 }}>{parseInline(line.slice(2))}</h1>); i++; continue }
-    if (line.trim() === "---") { elements.push(<hr key={k++} style={{ border: "none", borderTop: "1px solid #e8e5e0", margin: "10px 0" }} />); i++; continue }
-
-    if (line.startsWith("|")) {
-      const tableRows: string[][] = []
-      while (i < lines.length && lines[i].startsWith("|")) {
-        const cells = lines[i].split("|").slice(1, -1).map(c => c.trim())
-        if (!cells.every(c => /^[-: ]+$/.test(c))) tableRows.push(cells)
-        i++
-      }
-      if (tableRows.length > 0) {
-        const [headers, ...dataRows] = tableRows
-        elements.push(
-          <div key={k++} style={{ overflowX: "auto", margin: "8px 0" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <thead>
-                <tr style={{ background: "#f5f4f2" }}>
-                  {headers.map((h, j) => <th key={j} style={{ padding: "5px 10px", textAlign: "left", borderBottom: "1px solid #e8e5e0", fontWeight: 600, whiteSpace: "nowrap" }}>{parseInline(h)}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {dataRows.map((row, j) => (
-                  <tr key={j} style={{ borderBottom: "1px solid #f0eeec" }}>
-                    {row.map((cell, l) => <td key={l} style={{ padding: "4px 10px", color: "#374151" }}>{parseInline(cell)}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
-      }
-      continue
-    }
-
-    if (line.startsWith("> ")) {
-      const qLines: string[] = []
-      while (i < lines.length && lines[i].startsWith("> ")) { qLines.push(lines[i].slice(2)); i++ }
-      elements.push(<div key={k++} style={{ borderLeft: "3px solid #d4d4d4", paddingLeft: 12, margin: "6px 0", color: "#737373" }}>{qLines.map((l, j) => <p key={j} style={{ margin: "2px 0" }}>{parseInline(l)}</p>)}</div>)
-      continue
-    }
-
-    if (/^\d+\. /.test(line)) {
-      const items: string[] = []
-      while (i < lines.length && /^\d+\. /.test(lines[i])) { items.push(lines[i].replace(/^\d+\. /, "")); i++ }
-      elements.push(<ol key={k++} style={{ paddingLeft: 20, margin: "4px 0" }}>{items.map((item, j) => <li key={j} style={{ marginBottom: 3 }}>{parseInline(item)}</li>)}</ol>)
-      continue
-    }
-
-    if (line.startsWith("- ") || line.startsWith("• ")) {
-      const items: string[] = []
-      while (i < lines.length && (lines[i].startsWith("- ") || lines[i].startsWith("• "))) { items.push(lines[i].slice(2)); i++ }
-      elements.push(<ul key={k++} style={{ paddingLeft: 20, margin: "4px 0" }}>{items.map((item, j) => <li key={j} style={{ marginBottom: 3 }}>{parseInline(item)}</li>)}</ul>)
-      continue
-    }
-
-    if (line.trim() === "") { elements.push(<div key={k++} style={{ height: 6 }} />); i++; continue }
-
-    elements.push(<p key={k++} style={{ margin: "2px 0", lineHeight: 1.65 }}>{parseInline(line)}</p>)
-    i++
-  }
-  return <div style={{ fontSize: 13 }}>{elements}</div>
-}
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog"
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message"
 
 // ── Typing indicator ───────────────────────────────────────────────────────────
 
+const DOT_DELAY_CLASS = [
+  "[animation-delay:0s]",
+  "[animation-delay:0.15s]",
+  "[animation-delay:0.3s]",
+] as const
+
 function TypingDots() {
   return (
-    <div className="flex items-center gap-1" style={{ padding: "4px 0" }}>
+    <div className="flex items-center gap-1 py-1">
       {[0, 1, 2].map(i => (
-        <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#a3a3a3", animation: "bounce 1s infinite", animationDelay: `${i * 0.15}s` }} />
+        <div
+          key={i}
+          className={cn("size-1.5 rounded-full bg-muted-foreground dot-bounce", DOT_DELAY_CLASS[i])}
+        />
       ))}
     </div>
   )
@@ -204,8 +145,7 @@ export default function ChatPanel() {
     setToolBubbles([])
   }, [])
 
-  const deleteSession = useCallback(async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const deleteSession = useCallback(async (sessionId: string) => {
     await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" })
     setSessions(prev => prev.filter(s => s.id !== sessionId))
     if (activeSessionId === sessionId) {
@@ -374,94 +314,120 @@ export default function ChatPanel() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full" style={{ background: "#fafaf9" }}>
+    <div className="flex h-full bg-background">
 
       {/* ── 左栏：Session 列表 ─────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-shrink-0 border-r" style={{ width: 220, borderColor: "#e8e5e0", background: "#f5f4f2" }}>
+      <div className="flex flex-col flex-shrink-0 w-[220px] border-r border-border bg-muted/50">
         {/* New chat button */}
-        <div className="p-3 border-b" style={{ borderColor: "#e8e5e0" }}>
-          <button onClick={createSession}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[#eae8e4]"
-            style={{ color: "#1a1a1a", border: "1px solid #e8e5e0", background: "#ffffff" }}>
+        <div className="p-3 border-b border-border">
+          <Button variant="outline" size="sm" className="w-full gap-2" onClick={createSession}>
             <Plus size={14} />
             新对话
-          </button>
+          </Button>
         </div>
 
         {/* Session list */}
-        <div className="flex-1 overflow-y-auto py-2" style={{ scrollbarWidth: "thin", scrollbarColor: "#d4d4d4 transparent" }}>
-          {sessions.length === 0 && (
-            <p className="px-3 py-6 text-center text-xs" style={{ color: "#a3a3a3" }}>
-              暂无对话<br />点击「新对话」开始
-            </p>
-          )}
-          {sessions.map(session => (
-            <div key={session.id}
-              className={cn("group flex items-center gap-2 px-3 py-2 mx-1.5 mb-0.5 rounded-lg cursor-pointer transition-colors",
-                activeSessionId === session.id ? "bg-white" : "hover:bg-[#eae8e4]")}
-              style={{ boxShadow: activeSessionId === session.id ? "0 1px 3px rgba(0,0,0,0.06)" : "none" }}
-              onClick={() => selectSession(session.id)}>
+        <ScrollArea className="flex-1">
+          <div className="py-2">
+            {sessions.length === 0 && (
+              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                暂无对话<br />点击「新对话」开始
+              </p>
+            )}
+            {sessions.map(session => (
+              <div key={session.id}
+                className={cn(
+                  "group flex items-center gap-2 px-3 py-2 mx-1.5 mb-0.5 rounded-lg cursor-pointer transition-colors",
+                  "hover:bg-muted",
+                  activeSessionId === session.id
+                    ? "bg-primary/5 shadow-sm"
+                    : ""
+                )}
+                data-active={activeSessionId === session.id}
+                onClick={() => selectSession(session.id)}>
 
-              <MessageSquare size={13} style={{ color: "#a3a3a3", flexShrink: 0 }} />
+                <MessageSquare size={13} className="text-muted-foreground flex-shrink-0" />
 
-              {renamingId === session.id ? (
-                <input
-                  ref={renameInputRef}
-                  value={renameValue}
-                  onChange={e => setRenameValue(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingId(null) }}
-                  onClick={e => e.stopPropagation()}
-                  className="flex-1 text-xs bg-transparent outline-none border-b"
-                  style={{ color: "#1a1a1a", borderColor: "#1a1a1a", minWidth: 0 }}
-                />
-              ) : (
-                <span className="flex-1 text-xs truncate" style={{ color: "#374151" }}>
-                  {session.title}
-                </span>
-              )}
+                {renamingId === session.id ? (
+                  <Input
+                    ref={renameInputRef}
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingId(null) }}
+                    onClick={e => e.stopPropagation()}
+                    className="flex-1 h-5 text-xs border-0 border-b border-foreground rounded-none bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-foreground"
+                  />
+                ) : (
+                  <span className="flex-1 text-xs truncate text-foreground/80">
+                    {session.title}
+                  </span>
+                )}
 
-              {renamingId !== session.id && (
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button title="重命名" onClick={e => startRename(session, e)}
-                    className="p-0.5 rounded hover:bg-[#e0deda]" style={{ color: "#9ca3af" }}>
-                    <Pencil size={11} />
-                  </button>
-                  <button title="删除" onClick={e => deleteSession(session.id, e)}
-                    className="p-0.5 rounded hover:bg-[#fee2e2]" style={{ color: "#9ca3af" }}>
-                    <Trash2 size={11} />
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+                {renamingId !== session.id && (
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon-xs" title="重命名"
+                      onClick={e => startRename(session, e)}
+                      className="text-muted-foreground">
+                      <Pencil size={11} />
+                    </Button>
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon-xs" title="删除"
+                          onClick={e => e.stopPropagation()}
+                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                          <Trash2 size={11} />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent size="sm">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>删除对话</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            确定要删除「{session.title}」吗？此操作不可撤销。
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>取消</AlertDialogCancel>
+                          <AlertDialogAction variant="destructive" onClick={() => deleteSession(session.id)}>
+                            删除
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
       </div>
 
       {/* ── 右栏：对话区 ────────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0">
 
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "#d4d4d4 transparent" }}>
-          <div className="mx-auto" style={{ maxWidth: 720, padding: "24px 20px 8px" }}>
+        <ScrollArea className="flex-1">
+          <div className="mx-auto max-w-[720px] px-5 pt-6 pb-2">
 
             {/* Welcome state */}
             {messages.length === 0 && !isStreaming && (
               <div>
                 <div className="text-center mb-8">
-                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl mb-3" style={{ background: "#1a1a1a" }}>
-                    <Sparkles size={18} color="white" />
+                  <div className="inline-flex items-center justify-center size-10 rounded-xl bg-primary mb-3">
+                    <Sparkles size={18} className="text-primary-foreground" />
                   </div>
-                  <p className="text-sm font-medium" style={{ color: "#1a1a1a" }}>YZ-Ops AI</p>
-                  <p className="text-xs mt-1" style={{ color: "#a3a3a3" }}>跨品类运营数据分析 · 已上传文件均可查询</p>
+                  <p className="text-sm font-medium text-foreground">YZ-Ops AI</p>
+                  <p className="text-xs mt-1 text-muted-foreground">跨品类运营数据分析 · 已上传文件均可查询</p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center">
                   {QUICK_PROMPTS.map(prompt => (
-                    <button key={prompt.label} onClick={() => handleSend(prompt.text)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs transition-all hover:bg-[#eae8e4] hover:scale-[1.02]"
-                      style={{ background: "#f0eeec", color: "#374151", border: "1px solid #e8e5e0" }}>
-                      <span>{prompt.icon}</span><span>{prompt.label}</span>
-                    </button>
+                    <Button key={prompt.label} variant="outline" size="sm"
+                      className="gap-1.5 rounded-full hover:scale-[1.02] transition-all"
+                      onClick={() => handleSend(prompt.text)}>
+                      <span>{prompt.icon}</span>
+                      <span>{prompt.label}</span>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -472,122 +438,125 @@ export default function ChatPanel() {
               {messages.map(msg => {
                 if (msg.role === "user") {
                   return (
-                    <div key={msg.id} className="flex justify-end">
-                      <div className="rounded-2xl rounded-tr-sm px-4 py-3 text-sm"
-                        style={{ background: "#1a1a1a", color: "#fff", maxWidth: "80%", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-                        {msg.content}
-                      </div>
-                    </div>
+                    <Message key={msg.id} from="user">
+                      <MessageContent>
+                        <MessageResponse>{msg.content}</MessageResponse>
+                      </MessageContent>
+                    </Message>
                   )
                 }
 
                 return (
-                  <div key={msg.id} className="flex gap-3">
-                    <div className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg mt-0.5" style={{ background: "#1a1a1a" }}>
-                      <Sparkles size={13} color="white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {/* Tool call history (from DB) */}
-                      {msg.toolCalls && msg.toolCalls.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {msg.toolCalls.map((tc, idx) => (
-                            <span key={idx} className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
-                              style={{ background: "#f0eeec", color: "#6b7280" }}>
-                              <Wrench size={9} />{tc.tool}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="rounded-2xl rounded-tl-sm px-4 py-3" style={{ background: "#f5f4f2" }}>
-                        <MarkdownContent content={msg.content} />
+                  <Message key={msg.id} from="assistant">
+                    {/* Tool call history (from DB) */}
+                    {msg.toolCalls && msg.toolCalls.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {msg.toolCalls.map((tc, idx) => (
+                          <Badge key={idx} variant="secondary" className="gap-1 text-[10px] font-normal">
+                            <Wrench size={9} />
+                            {tc.tool}
+                          </Badge>
+                        ))}
                       </div>
-                      {/* Copy button */}
-                      {msg.content && (
-                        <button title="复制" onClick={() => handleCopy(msg.id, msg.content)}
-                          className="mt-1 p-1 rounded transition-colors hover:bg-[#eae8e4]"
-                          style={{ color: copiedId === msg.id ? "#1a1a1a" : "#a3a3a3" }}>
-                          {copiedId === msg.id ? <Check size={13} /> : <Copy size={13} />}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                    )}
+                    <MessageContent>
+                      <MessageResponse>{msg.content}</MessageResponse>
+                    </MessageContent>
+                    {/* Copy button */}
+                    {msg.content && (
+                      <Button variant="ghost" size="icon-xs" title="复制"
+                        className={cn(
+                          "text-muted-foreground",
+                          copiedId === msg.id && "text-foreground"
+                        )}
+                        onClick={() => handleCopy(msg.id, msg.content)}>
+                        {copiedId === msg.id ? <Check size={13} /> : <Copy size={13} />}
+                      </Button>
+                    )}
+                  </Message>
                 )
               })}
 
               {/* Streaming assistant message */}
               {isStreaming && (
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg mt-0.5" style={{ background: "#1a1a1a" }}>
-                    <Sparkles size={13} color="white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {/* Active tool bubbles */}
-                    {toolBubbles.length > 0 && (
-                      <div className="flex flex-col gap-1 mb-2">
-                        {toolBubbles.map((bubble, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs"
-                            style={{ background: "#f0eeec", color: "#6b7280", width: "fit-content" }}>
+                <Message from="assistant">
+                  {/* Active tool bubbles */}
+                  {toolBubbles.length > 0 && (
+                    <div className="flex flex-col gap-1">
+                      {toolBubbles.map((bubble, idx) => (
+                        <Card key={idx} size="sm" className="w-fit py-0 ring-0 border-0 bg-muted/60">
+                          <CardContent className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground">
                             <Wrench size={10} />
                             <span>{bubble.tool}</span>
                             {bubble.status === "loading" ? (
-                              <span style={{ color: "#a3a3a3" }}>…</span>
+                              <span className="text-muted-foreground/60">…</span>
                             ) : (
                               <>
-                                <Check size={10} style={{ color: "#16a34a" }} />
+                                <Check size={10} className="text-green-600" />
                                 {bubble.resultSummary && (
-                                  <span style={{ color: "#9ca3af" }}>{bubble.resultSummary}</span>
+                                  <span className="text-muted-foreground/70">{bubble.resultSummary}</span>
                                 )}
                               </>
                             )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="rounded-2xl rounded-tl-sm px-4 py-3" style={{ background: "#f5f4f2" }}>
-                      {isTyping
-                        ? <TypingDots />
-                        : <MarkdownContent content={streamingText} />
-                      }
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
-                  </div>
-                </div>
+                  )}
+                  <MessageContent>
+                    {isTyping
+                      ? <TypingDots />
+                      : <MessageResponse isAnimating>{streamingText}</MessageResponse>
+                    }
+                  </MessageContent>
+                </Message>
               )}
             </div>
 
-            <div ref={messagesEndRef} style={{ height: 8 }} />
+            <div ref={messagesEndRef} className="h-2" />
           </div>
-        </div>
+        </ScrollArea>
 
         {/* Input area */}
-        <div className="flex-shrink-0 px-4 pb-4 pt-2" style={{ background: "#fafaf9" }}>
-          <div className="mx-auto" style={{ maxWidth: 720 }}>
-            <div className="flex items-end gap-2 rounded-2xl px-3 py-2.5"
-              style={{ background: "#ffffff", border: "1px solid #e8e5e0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-              <select
+        <div className="flex-shrink-0 px-4 pb-4 pt-2 bg-background">
+          <div className="mx-auto max-w-[720px]">
+            <div className="flex items-end gap-2 rounded-2xl border border-border bg-card px-3 py-2.5 shadow-sm">
+              <Select
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
+                onValueChange={setSelectedModel}
                 disabled={isStreaming}
-                className="flex-shrink-0 bg-transparent text-xs outline-none cursor-pointer"
-                style={{ color: "#8a8a8a", border: "none" }}
-                title="选择模型"
               >
-                <option value="sonnet">Sonnet</option>
-                <option value="haiku">Haiku</option>
-                <option value="opus">Opus</option>
-              </select>
-              <textarea ref={textareaRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
+                <SelectTrigger size="sm" className="flex-shrink-0 w-auto border-0 bg-transparent shadow-none px-1.5 text-xs text-muted-foreground focus-visible:ring-0" title="选择模型">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sonnet">Sonnet</SelectItem>
+                  <SelectItem value="haiku">Haiku</SelectItem>
+                  <SelectItem value="opus">Opus</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
                 placeholder="请提问，如：诊断本周广告效率，或：哪个 ASIN 库存最紧张？"
-                rows={1} disabled={isStreaming}
-                className="flex-1 resize-none bg-transparent outline-none text-sm leading-relaxed"
-                style={{ color: "#1a1a1a", minHeight: 22, maxHeight: 120, scrollbarWidth: "none" }} />
-              <button onClick={() => handleSend()} disabled={!input.trim() || isStreaming}
-                className="flex-shrink-0 p-1.5 rounded-lg transition-all"
-                style={{ background: input.trim() && !isStreaming ? "#1a1a1a" : "#e8e5e0", color: input.trim() && !isStreaming ? "#fff" : "#a3a3a3" }}
-                title="发送 (Enter)">
+                rows={1}
+                disabled={isStreaming}
+                className="flex-1 resize-none border-0 bg-transparent shadow-none text-sm leading-relaxed min-h-[22px] max-h-[120px] py-0 px-0 focus-visible:ring-0 [scrollbar-width:none]"
+              />
+
+              <Button
+                size="icon-sm"
+                onClick={() => handleSend()}
+                disabled={!input.trim() || isStreaming}
+                title="发送 (Enter)"
+              >
                 <Send size={14} />
-              </button>
+              </Button>
             </div>
-            <p className="text-center mt-2 text-[11px]" style={{ color: "#c4c4c4" }}>
+            <p className="text-center mt-2 text-[11px] text-muted-foreground/60">
               AI 建议基于已上传报表数据生成，仅供参考
             </p>
           </div>
