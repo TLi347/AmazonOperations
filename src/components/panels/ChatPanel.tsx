@@ -160,6 +160,7 @@ export default function ChatPanel() {
   const [toolBubbles, setToolBubbles]         = useState<ToolBubble[]>([])
   const [isStreaming, setIsStreaming]         = useState(false)
   const [input, setInput]                     = useState("")
+  const [selectedModel, setSelectedModel]     = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_MODEL || "sonnet")
   const [copiedId, setCopiedId]               = useState<string | null>(null)
   const [renamingId, setRenamingId]           = useState<string | null>(null)
   const [renameValue, setRenameValue]         = useState("")
@@ -253,7 +254,7 @@ export default function ChatPanel() {
       const response = await fetch(`/api/sessions/${activeSessionId}/run`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ userMessage: text }),
+        body:    JSON.stringify({ userMessage: text, model: selectedModel }),
       })
 
       const reader  = response.body!.getReader()
@@ -329,7 +330,7 @@ export default function ChatPanel() {
       }])
       finish()
     }
-  }, [isStreaming, activeSessionId, loadSessions])
+  }, [isStreaming, activeSessionId, loadSessions, selectedModel])
 
   const handleSend = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim()
@@ -560,6 +561,18 @@ export default function ChatPanel() {
           <div className="mx-auto" style={{ maxWidth: 720 }}>
             <div className="flex items-end gap-2 rounded-2xl px-3 py-2.5"
               style={{ background: "#ffffff", border: "1px solid #e8e5e0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                disabled={isStreaming}
+                className="flex-shrink-0 bg-transparent text-xs outline-none cursor-pointer"
+                style={{ color: "#8a8a8a", border: "none" }}
+                title="选择模型"
+              >
+                <option value="sonnet">Sonnet</option>
+                <option value="haiku">Haiku</option>
+                <option value="opus">Opus</option>
+              </select>
               <textarea ref={textareaRef} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
                 placeholder="请提问，如：诊断本周广告效率，或：哪个 ASIN 库存最紧张？"
                 rows={1} disabled={isStreaming}

@@ -18,7 +18,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { userMessage } = await req.json() as { userMessage: string }
+  const { userMessage, model } = await req.json() as { userMessage: string; model?: string }
   const sessionId = params.id
 
   const stream  = new TransformStream()
@@ -46,6 +46,7 @@ export async function POST(
         systemPrompt,
         send,
         sdkSessionId,
+        model,
       )
 
       // 4. 持久化 SDK session ID（首次对话后写入，后续用于 resume）

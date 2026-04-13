@@ -83,6 +83,7 @@ export async function runAgentLoop(
   systemPrompt:   string,
   onEvent:        (event: object) => void,
   sdkSessionId?:  string | null,
+  model?:         string,
 ): Promise<AgentLoopResult> {
   const toolCalls: ToolCallRecord[] = []
   let   fullText        = ""
@@ -96,7 +97,7 @@ export async function runAgentLoop(
     for await (const message of query({
       prompt: userMessage,
       options: {
-        model:                  "sonnet",
+        model:                  model || process.env.AGENT_MODEL || "sonnet",
         maxTurns:               MAX_TURNS,
         systemPrompt:           systemPrompt,
         includePartialMessages: true,
