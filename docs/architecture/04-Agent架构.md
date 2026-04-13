@@ -3,7 +3,7 @@
 [← 返回索引](../README.md)
 
 > 对应功能设计：[features/06-Chat.md](../features/06-Chat.md)  
-> **当前实现**：基于 `@anthropic-ai/sdk` v0.36.3 的 `messages.stream()` + 手写 Agent Loop。**不是** Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`)。
+> **当前实现**：基于 `@anthropic-ai/claude-agent-sdk` 的 `query()` + 进程内 MCP Server。
 
 ---
 
@@ -18,124 +18,120 @@
 
 /api/sessions/:id/run/route.ts
     │
-    ├── 1. 从 DB 加载 Session 历史（最近 20 轮）
-    ├── 2. buildAgentSystemPrompt()  动态构建 System Prompt
-    ├── 3. getSessionSkillTools()    获取工具定义
-    └── 4. runAgentLoop()            执行 Agent 循环
+    ├── 1. buildAgentSystemPrompt()   动态构建 System Prompt
+    └── 2. runAgentLoop()             调用 SDK query()
           │
-          ├── stream.on('text') → SSE: text_delta（逐 token）
+          ├── query() 配置：
+          │     model:          "sonnet"
+          │     maxTurns:       10
+          │     tools:          []                (移除所有内置工具)
+          │     mcpServers:     { "yz-ops": ... } (进程内 MCP)
+          │     allowedTools:   ["mcp__yz-ops__*"]
+          │     systemPrompt:   动态构建
+          │     includePartialMessages: true
+          │     permissionMode: "bypassPermissions"
           │
-          ├── stop_reason = "tool_use"
-          │     ├── SSE: tool_start
-          │     ├── executeTool() → DB 查询 → JSON
-          │     ├── SSE: tool_done
-          │     └── 追加 tool_result → 继续循环
+          ├── SDK 内部自动处理工具调用循环
           │
-          └── stop_reason = "end_turn"
-                ├── SSE: done
-                └── 消息写入 DB
+          └── SDKMessage 流 → 转换为 SSE 事件 → 前端
 ```
 
 ---
 
-## 一、Agent Loop（`lib/agentLoop.ts`）
+## 一、Agent 执行（`lib/agentLoop.ts`）
 
-手写循环，最多 10 轮迭代：
+使用 Agent SDK 的 `query()` 函数，SDK 自动处理工具调用循环：
 
 ```ts
-for (let i = 0; i < MAX_ITERATIONS; i++) {
-  const stream = client.messages.stream({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    system: systemPrompt,
-    tools: skillTools,
-    messages: history,
-  })
+import { query } from "@anthropic-ai/claude-agent-sdk"
 
-  // 流式推送 text_delta
-  stream.on("text", (text) => onEvent({ type: "text_delta", delta: text }))
-
-  const finalMsg = await stream.finalMessage()
-
-  if (finalMsg.stop_reason === "tool_use") {
-    // 提取 tool_use blocks → 并行执行 → 追加 tool_result → continue
-  }
-  if (finalMsg.stop_reason === "end_turn") {
-    return { content: fullText, toolCalls }
-  }
+for await (const message of query({
+  prompt: userMessage,
+  options: {
+    model: "sonnet",
+    maxTurns: 10,
+    systemPrompt,
+    includePartialMessages: true,
+    permissionMode: "bypassPermissions",
+    tools: [],
+    mcpServers: { "yz-ops": yzOpsMcpServer },
+    allowedTools: ["mcp__yz-ops__*"],
+  },
+})) {
+  // 解析 SDKMessage，转换为 SSE 事件
 }
 ```
 
-关键设计：
-- **工具在流结束后执行**，不是流中途。`finalMessage()` 返回后才提取 `tool_use` blocks
-- 多个工具调用用 `Promise.all` 并行执行
-- 工具调用轮次的文字会被**重置**（`fullText = ""`），只保留最终回答
-- 工具结果以 `{ role: "user", content: [tool_result...] }` 追加到 history
+### SDKMessage → SSE 事件映射
+
+| SDK Message | 条件 | SSE 事件 |
+|-------------|------|---------|
+| `system` (subtype: init) | — | `session_start` |
+| `stream_event` | content_block_delta + text_delta | `text_delta` |
+| `assistant` | 含 tool_use block | `tool_start` |
+| `user` | 含 tool_result | `tool_done` |
+| `result` (subtype: success) | — | `done` |
+| `result` (subtype: error_*) | — | `error` |
+
+### 与旧版的关键差异
+
+| 维度 | 旧版（手写循环） | 新版（Agent SDK） |
+|------|----------------|------------------|
+| 工具循环 | 手写 `for` 循环 + `stop_reason` 检查 | SDK `query()` 自动处理 |
+| 工具执行 | 进程内直接调用 `executeTool()` | 进程内 MCP Server（同样直接查 DB） |
+| 流式 | `messages.stream()` + `on("text")` | `includePartialMessages: true` |
+| 历史管理 | 手动从 DB 加载 + 拼接 | SDK 内置 session 管理（可选） |
+| 轮次控制 | `MAX_ITERATIONS = 10` | `maxTurns: 10` |
 
 ---
 
-## 二、Skill 系统（`lib/skills/`）
+## 二、进程内 MCP 工具（`lib/mcpTools.ts`）
 
-两层封装：Skill 接口 + 注册表路由。
-
-### Skill 接口
+使用 Agent SDK 的 `tool()` + `createSdkMcpServer()` 定义工具，运行在同一进程内（不需要独立 MCP Server 进程）：
 
 ```ts
-interface Skill {
-  id:          string
-  name:        string
-  description: string
-  tools:       Anthropic.Tool[]                                        // 工具定义
-  executor:    Record<string, (input: Record<string, unknown>) => Promise<string>>  // 工具执行
-}
+import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk"
+import { z } from "zod"
+import { executeTool } from "./agentTools"
+
+const getMetrics = tool(
+  "get_metrics",
+  "查询产品 KPI 快照...",
+  {
+    time_window: z.enum(["today", "yesterday", "w7", "w14", "d30"]),
+    asin: z.string().optional(),
+  },
+  async (args) => {
+    const result = await executeTool("get_metrics", args)
+    return { content: [{ type: "text", text: result }] }
+  },
+  { annotations: { readOnlyHint: true } }
+)
+
+export const yzOpsMcpServer = createSdkMcpServer({
+  name: "yz-ops",
+  tools: [getMetrics, /* ...其余 7 个 */],
+})
 ```
 
-### 注册表（`skills/index.ts`）
+### 工具列表
 
-```ts
-const registeredSkills: Skill[] = [amazonOpsSkill]  // MVP 仅一个
+| MCP 工具名 | 用途 | 数据源 |
+|-----------|------|--------|
+| `mcp__yz-ops__get_metrics` | 产品 KPI 快照 | ProductMetricDay |
+| `mcp__yz-ops__get_acos_history` | ACoS + GMV 日趋势 | ProductMetricDay |
+| `mcp__yz-ops__get_inventory` | 库存状况 | ContextFile(inventory) |
+| `mcp__yz-ops__get_ad_campaigns` | 广告活动数据 | ContextFile(campaign_3m) |
+| `mcp__yz-ops__get_search_terms` | 搜索词表现 | ContextFile(search_terms) |
+| `mcp__yz-ops__get_alerts` | 已触发告警 | Alert 表 |
+| `mcp__yz-ops__list_uploaded_files` | 已上传报表列表 | ContextFile |
+| `mcp__yz-ops__get_file_data` | 原始文件数据 | ContextFile(any) |
 
-// 路由：按工具名找到对应 Skill 的 executor
-async function executeTool(name, input) {
-  for (const skill of registeredSkills) {
-    if (skill.executor[name]) return skill.executor[name](input)
-  }
-}
-
-// MVP：所有 Session 固定挂载 amazonOpsSkill
-async function getSessionSkillTools(sessionId) {
-  return amazonOpsSkill.tools
-}
-```
-
-### 内置 Amazon Ops Skill（`skills/amazonOps.ts`）
-
-将 `agentTools.ts` 的 8 个工具定义 + 执行函数包装为一个 Skill 对象，默认挂载到所有 Session。
-
-设计为可扩展多 Skill，但当前是硬编码单 skill。
+所有工具标注 `readOnlyHint: true`（只读查询，可并行调用）。工具执行逻辑复用 `agentTools.ts` 的 `executeTool()`。
 
 ---
 
-## 三、工具实现（`lib/agentTools.ts`）
-
-所有工具都是 **DB 查询 → JSON 字符串**：
-
-| 工具 | 数据源 | 查询方式 |
-|------|--------|----------|
-| `get_metrics` | `ProductMetricDay` | 按日期范围聚合，计算衍生指标 |
-| `get_acos_history` | `ProductMetricDay` | 按 ASIN + 日期取时序 |
-| `get_inventory` | `ContextFile(inventory)` | 直接读 parsedRows |
-| `get_ad_campaigns` | `ContextFile(campaign_3m)` | 读 JSON + 内存过滤 |
-| `get_search_terms` | `ContextFile(search_terms)` | 读 JSON + 内存过滤 |
-| `get_alerts` | `Alert` 表 | 取最新 snapshotDate |
-| `list_uploaded_files` | `ContextFile` | 全量 + 新鲜度计算 |
-| `get_file_data` | `ContextFile(any)` | 通用读取，支持 limit |
-
-工具结果通过 `buildResultSummary()` 生成摘要（如"返回 5 条记录"），用于前端气泡展示。
-
----
-
-## 四、System Prompt 构建（`lib/buildSystemPrompt.ts`）
+## 三、System Prompt 构建（`lib/buildSystemPrompt.ts`）
 
 每次用户发送消息时**动态重建**，包含：
 
@@ -149,7 +145,7 @@ async function getSessionSkillTools(sessionId) {
 
 ---
 
-## 五、Session 管理 API
+## 四、Session 管理 API
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
@@ -158,21 +154,18 @@ async function getSessionSkillTools(sessionId) {
 | `/api/sessions/:id` | GET | 取 Session + 最近 40 条消息（20 轮） |
 | `/api/sessions/:id` | PATCH | 重命名 |
 | `/api/sessions/:id` | DELETE | 删除（级联删消息） |
-| `/api/sessions/:id/run` | POST | 执行 Agent Loop，SSE 流式响应 |
+| `/api/sessions/:id/run` | POST | 执行 Agent，SSE 流式响应 |
 
 ### 执行端点流程（`/api/sessions/:id/run`）
 
-1. 从 DB 加载最近 40 条消息，转为 `Anthropic.MessageParam[]`（仅 role + content 文字，不含 tool blocks）
-2. 追加本轮用户消息
-3. `buildAgentSystemPrompt()` 动态构建 system prompt
-4. `getSessionSkillTools()` 获取工具定义
-5. `runAgentLoop()` 执行循环，通过 SSE 回调推送事件
-6. 持久化 user + assistant 消息到 DB
-7. 首条消息自动设置 Session 标题（前 30 字）
+1. `buildAgentSystemPrompt()` 动态构建 system prompt
+2. `runAgentLoop()` 调用 SDK `query()`，通过 SSE 回调推送事件
+3. 持久化 user + assistant 消息到 DB
+4. 首条消息自动设置 Session 标题（前 30 字）
 
 ---
 
-## 六、SSE 事件规范
+## 五、SSE 事件规范
 
 | type | 含义 | 额外字段 |
 |------|------|---------|
@@ -185,37 +178,42 @@ async function getSessionSkillTools(sessionId) {
 
 ---
 
-## 七、消息持久化策略
+## 六、消息持久化策略
 
 | 项目 | 策略 |
 |------|------|
 | 存储 | user + assistant 消息在 `done` 后写入 DB |
 | 工具调用记录 | 存摘要（tool + input + resultSummary），不存完整返回 JSON |
-| 历史加载 | 取最近 40 条（20 轮），超长自动截断 |
-| API 消息格式 | 仅传 role + content 文字，不含 tool blocks |
+| SDK Session | SDK 内部管理完整对话历史（含 tool blocks），可通过 `resume` 续接 |
+| DB Session | 自有 Session/Message 表用于 UI 展示（session 列表、消息历史） |
 | 跨轮数据 | Claude 每轮重新调工具获取最新数据 |
 
 ---
 
-## 八、关键文件
+## 七、关键文件
 
 | 文件 | 职责 |
 |------|------|
-| `src/lib/agentLoop.ts` | Agent 循环（stream + tool dispatch） |
-| `src/lib/agentTools.ts` | 8 个工具定义 + DB 查询执行 |
-| `src/lib/skills/index.ts` | Skill 注册表 + executeTool 路由 |
-| `src/lib/skills/amazonOps.ts` | 内置 Amazon Ops Skill |
+| `src/lib/agentLoop.ts` | 调用 SDK query()，解析 SDKMessage，转 SSE 事件 |
+| `src/lib/mcpTools.ts` | 进程内 MCP Server（tool() + createSdkMcpServer） |
+| `src/lib/agentTools.ts` | 8 个工具的 DB 查询执行逻辑（被 mcpTools 复用） |
 | `src/lib/buildSystemPrompt.ts` | 动态 System Prompt 构建 |
 | `src/app/api/sessions/[id]/run/route.ts` | SSE 流式 API 入口 |
 | `src/components/panels/ChatPanel.tsx` | 前端两栏布局 + SSE 消费 |
 
+### 遗留文件（不再使用，待清理）
+
+| 文件 | 说明 |
+|------|------|
+| `src/lib/skills/index.ts` | 旧 Skill 注册表，已被 mcpTools.ts 替代 |
+| `src/lib/skills/amazonOps.ts` | 旧 Amazon Ops Skill 封装，已被 mcpTools.ts 替代 |
+
 ---
 
-## 九、已知限制与演进方向
+## 八、依赖关系
 
-当前架构的局限：
-- **消息历史不完整**：API 消息数组只传纯文字，丢失 tool_use/tool_result 中间轮次，影响多轮追问质量
-- **Skill 固定挂载**：所有 Session 共用同一 Skill，无法按 Session 定制工具集
-- **轮次硬编码**：`MAX_ITERATIONS = 10`，无动态控制
-
-迁移计划见 [plans/agent-sdk-migration.md](../plans/agent-sdk-migration.md)。
+```
+@anthropic-ai/claude-agent-sdk  →  query(), tool(), createSdkMcpServer()
+zod                             →  MCP 工具 schema 定义
+@anthropic-ai/sdk (遗留)         →  agentTools.ts 中 TOOL_DEFINITIONS 类型（待移除）
+```
