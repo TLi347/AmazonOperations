@@ -137,10 +137,8 @@ export async function runAgentLoop(
         const content = (message.message?.content ?? []) as Array<{
           type: string; id?: string; name?: string; input?: unknown; text?: string
         }>
-        let hasPendingToolUse = false
         for (const block of content) {
           if (block.type === "tool_use" && block.id && block.name) {
-            hasPendingToolUse = true
             const name  = shortToolName(block.name)
             const input = (block.input ?? {}) as Record<string, unknown>
             pendingTools.set(block.id, { name, input })
@@ -151,10 +149,8 @@ export async function runAgentLoop(
             fullText += block.text
           }
         }
-        // 仅当本轮有工具调用时重置流式标记，下一轮 LLM 回复需要重新收集
-        if (hasPendingToolUse) {
-          hasStreamedText = false
-        }
+        // assistant 消息处理完后重置流式标记，下一轮回复需要重新收集
+        hasStreamedText = false
       }
 
       // ── user 消息（含 tool_result）───────────────────────────────────────
