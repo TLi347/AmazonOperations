@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface UploadedFile {
   id:           string;
@@ -24,10 +28,10 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   keyword_monitor:  "关键词监控",
 };
 
-const FRESHNESS_STYLE = {
-  fresh: { color: "#0ca678",  label: "新鲜" },
-  ok:    { color: "#969bb0",  label: "正常" },
-  stale: { color: "#d63031",  label: "过期" },
+const FRESHNESS_LABEL: Record<string, string> = {
+  fresh: "新鲜",
+  ok:    "正常",
+  stale: "过期",
 };
 
 export default function ContextPanel() {
@@ -35,7 +39,6 @@ export default function ContextPanel() {
   const [files, setFiles]         = useState<UploadedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = useCallback(() => {
@@ -75,114 +78,103 @@ export default function ContextPanel() {
   if (!isOpen) {
     return (
       <div
-        style={{
-          width: 28, background: "#ffffff", borderLeft: "1px solid #ecedf1",
-          display: "flex", flexDirection: "column", alignItems: "center",
-          flexShrink: 0, cursor: "pointer",
-        }}
+        className="w-7 shrink-0 cursor-pointer border-l border-border bg-background flex flex-col items-center"
         onClick={() => setIsOpen(true)}
       >
-        <div style={{ padding: "14px 0 8px", color: "#969bb0", fontSize: 12 }}>‹</div>
-        <div style={{
-          writingMode: "vertical-rl", transform: "rotate(180deg)",
-          fontSize: 9, fontWeight: 600, color: "#969bb0",
-          letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4,
-        }}>Context</div>
+        <div className="pt-3.5 pb-2 text-muted-foreground text-xs">&#8249;</div>
+        <div className="[writing-mode:vertical-rl] rotate-180 text-[9px] font-semibold text-muted-foreground tracking-widest uppercase mt-1">
+          Context
+        </div>
       </div>
     );
   }
 
   /* ── Expanded ── */
   return (
-    <div style={{
-      width: 256, background: "#f9f9fb", borderLeft: "1px solid #ecedf1",
-      display: "flex", flexDirection: "column", flexShrink: 0,
-    }}>
+    <div className="w-64 shrink-0 border-l border-border bg-muted flex flex-col">
       {/* Header */}
-      <div style={{
-        padding: "14px 14px 10px", borderBottom: "1px solid #ecedf1",
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-      }}>
+      <div className="px-3.5 pt-3.5 pb-2.5 border-b border-border flex justify-between items-center">
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1d28" }}>Context</div>
-          <div style={{ fontSize: 10, color: "#969bb0", fontFamily: "monospace", marginTop: 1 }}>
+          <div className="text-[13px] font-bold text-foreground">Context</div>
+          <div className="text-[10px] text-muted-foreground font-mono mt-px">
             ./context/ · {files.length} 个文件
           </div>
         </div>
-        <div
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={() => setIsOpen(false)}
-          style={{ cursor: "pointer", color: "#969bb0", fontSize: 13, padding: "4px 6px" }}
-        >›</div>
+          className="text-muted-foreground"
+        >
+          &#8250;
+        </Button>
       </div>
 
       {/* File cards 2-column grid */}
-      <div style={{
-        flex: 1, overflowY: "auto", padding: "12px 10px",
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, alignContent: "start",
-      }}>
-        {files.length === 0 && (
-          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 11, color: "#969bb0" }}>暂无已上传文件</div>
-          </div>
-        )}
-        {files.map((f, i) => {
-          const fs_ = FRESHNESS_STYLE[f.freshness] ?? FRESHNESS_STYLE.ok;
-          const isHovered = hoveredIdx === i;
-          return (
-            <div
-              key={f.id}
-              onMouseEnter={() => setHoveredIdx(i)}
-              onMouseLeave={() => setHoveredIdx(null)}
-              style={{
-                background: "#fff",
-                border: `1px solid ${isHovered ? "#e8e9ee" : "#e4e5ea"}`,
-                borderRadius: 10, padding: "10px 10px 8px",
-                position: "relative", cursor: "default",
-                boxShadow: isHovered ? "0 1px 6px rgba(0,0,0,0.06)" : "none",
-                transition: "box-shadow 0.12s",
-              }}
-            >
-              {/* File type name */}
-              <div style={{
-                fontSize: 11, fontWeight: 600, color: "#1a1d28",
-                lineHeight: 1.35, marginBottom: 4,
-                wordBreak: "break-all", paddingRight: 4,
-              }}>
-                {FILE_TYPE_LABELS[f.fileType] ?? f.fileType}
-              </div>
-
-              {/* Date + freshness */}
-              <div style={{ fontSize: 9, color: fs_.color, marginBottom: 7 }}>
-                {f.snapshotDate} · {fs_.label}
-              </div>
-
-              {/* XLSX badge */}
-              <div style={{
-                display: "inline-flex", alignItems: "center",
-                fontSize: 9, fontWeight: 600,
-                background: "#f0f1f5", color: "#5c6070",
-                borderRadius: 4, padding: "2px 6px",
-                border: "1px solid #e8e9ee",
-              }}>XLSX</div>
+      <ScrollArea className="flex-1">
+        <div className="grid grid-cols-2 gap-2 p-2.5 content-start">
+          {files.length === 0 && (
+            <div className="col-span-full text-center py-5">
+              <div className="text-[11px] text-muted-foreground">暂无已上传文件</div>
             </div>
-          );
-        })}
-      </div>
+          )}
+          {files.map((f) => (
+            <Card
+              key={f.id}
+              size="sm"
+              className="cursor-default p-2.5 pb-2 gap-1 rounded-[10px] transition-shadow hover:shadow-md"
+            >
+              <CardContent className="p-0">
+                {/* File type name */}
+                <div className="text-[11px] font-semibold text-foreground leading-tight mb-1 break-all pr-1">
+                  {FILE_TYPE_LABELS[f.fileType] ?? f.fileType}
+                </div>
+
+                {/* Date + freshness badge */}
+                <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+                  <span className="text-[9px] text-muted-foreground">{f.snapshotDate}</span>
+                  {f.freshness === "fresh" && (
+                    <Badge className="bg-emerald-100 text-emerald-800 text-[9px] h-4 px-1.5">
+                      {FRESHNESS_LABEL.fresh}
+                    </Badge>
+                  )}
+                  {f.freshness === "ok" && (
+                    <Badge variant="secondary" className="text-[9px] h-4 px-1.5">
+                      {FRESHNESS_LABEL.ok}
+                    </Badge>
+                  )}
+                  {f.freshness === "stale" && (
+                    <Badge variant="destructive" className="text-[9px] h-4 px-1.5">
+                      {FRESHNESS_LABEL.stale}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* XLSX badge */}
+                <Badge variant="outline" className="text-[9px] font-semibold h-4 px-1.5">
+                  XLSX
+                </Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </ScrollArea>
 
       {/* Upload message */}
       {uploadMsg && (
-        <div style={{
-          margin: "0 10px 4px",
-          padding: "6px 10px", borderRadius: 6,
-          background: uploadMsg.ok ? "rgba(12,166,120,0.08)" : "rgba(214,48,49,0.08)",
-          fontSize: 10, color: uploadMsg.ok ? "#0ca678" : "#d63031",
-        }}>
-          {uploadMsg.ok ? "✓" : "✗"} {uploadMsg.text}
+        <div
+          className={`mx-2.5 mb-1 px-2.5 py-1.5 rounded-md text-[10px] ${
+            uploadMsg.ok
+              ? "bg-emerald-500/10 text-emerald-600"
+              : "bg-destructive/10 text-destructive"
+          }`}
+        >
+          {uploadMsg.ok ? "\u2713" : "\u2717"} {uploadMsg.text}
         </div>
       )}
 
       {/* Add file button */}
-      <div style={{ padding: "10px 10px 12px", borderTop: "1px solid #ecedf1" }}>
+      <div className="px-2.5 pt-2.5 pb-3 border-t border-border">
         <input
           ref={fileInputRef}
           type="file"
@@ -190,24 +182,18 @@ export default function ContextPanel() {
           className="hidden"
           onChange={handleUpload}
         />
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           disabled={uploading}
           onClick={() => fileInputRef.current?.click()}
-          style={{
-            width: "100%", padding: "8px 0", borderRadius: 8,
-            border: "1.5px dashed #e8e9ee", background: "transparent",
-            fontSize: 11, color: "#969bb0", cursor: uploading ? "default" : "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-            transition: "all 0.12s", opacity: uploading ? 0.6 : 1,
-          }}
-          onMouseEnter={(e) => { if (!uploading) { e.currentTarget.style.borderColor = "#3b5bdb"; e.currentTarget.style.color = "#3b5bdb"; } }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e8e9ee"; e.currentTarget.style.color = "#969bb0"; }}
+          className="w-full border-dashed gap-1 text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-60"
         >
           {uploading
-            ? <><Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> 解析中…</>
-            : <><span style={{ fontSize: 16, lineHeight: 1 }}>+</span> 添加文件</>
+            ? <><Loader2 className="size-3 animate-spin" /> 解析中...</>
+            : <><Plus className="size-4" /> 添加文件</>
           }
-        </button>
+        </Button>
       </div>
     </div>
   );
