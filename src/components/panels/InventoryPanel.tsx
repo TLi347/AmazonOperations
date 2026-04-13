@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
 import { Loader2, AlertTriangle, Package } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from "@/components/ui/table";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRow = Record<string, any>;
@@ -21,10 +26,16 @@ function getStockLevel(row: AnyRow): "critical" | "warning" | "ok" {
   return "ok";
 }
 
-const STOCK_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-  critical: { bg: "#fef2f2", text: "#dc2626", label: "危险" },
-  warning:  { bg: "#fffbeb", text: "#d97706", label: "注意" },
-  ok:       { bg: "#f0fdf4", text: "#16a34a", label: "健康" },
+const STOCK_BADGE: Record<string, { variant: "destructive" | "outline"; className: string; label: string }> = {
+  critical: { variant: "destructive", className: "",                                                    label: "危险" },
+  warning:  { variant: "outline",     className: "bg-amber-100 text-amber-800 border-amber-200",       label: "注意" },
+  ok:       { variant: "outline",     className: "bg-emerald-100 text-emerald-800 border-emerald-200", label: "健康" },
+};
+
+const STOCK_TEXT: Record<string, string> = {
+  critical: "text-destructive",
+  warning:  "text-amber-600",
+  ok:       "text-emerald-600",
 };
 
 export default function InventoryPanel() {
@@ -50,24 +61,24 @@ export default function InventoryPanel() {
   }, [activeCategoryKey]);
 
   return (
-    <div className="h-full overflow-y-auto p-6" style={{ background: "#fafaf9" }}>
+    <div className="h-full overflow-y-auto p-6 bg-background">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-lg font-semibold" style={{ color: "#1a1a1a" }}>
+          <h1 className="text-lg font-semibold text-foreground">
             {activeCategoryKey ? `${activeCategoryKey} 库存管理` : "库存管理"}
           </h1>
           {data && (
-            <p className="text-xs mt-0.5" style={{ color: "#a3a3a3" }}>
+            <p className="text-xs mt-0.5 text-muted-foreground">
               快照：{data.snapshotDate} · {data.total} 条记录
             </p>
           )}
         </div>
-        <Package size={20} style={{ color: "#a3a3a3" }} />
+        <Package size={20} className="text-muted-foreground" />
       </div>
 
       {loading && (
-        <div className="flex items-center justify-center py-20" style={{ color: "#a3a3a3" }}>
+        <div className="flex items-center justify-center py-20 text-muted-foreground">
           <Loader2 size={20} className="animate-spin mr-2" />
           <span className="text-sm">加载中…</span>
         </div>
@@ -76,37 +87,37 @@ export default function InventoryPanel() {
       {!loading && error && (
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <AlertTriangle size={32} style={{ color: "#d97706" }} className="mx-auto mb-2" />
-            <p className="text-sm" style={{ color: "#737373" }}>{error}</p>
-            <p className="text-xs mt-1" style={{ color: "#a3a3a3" }}>请先上传库存报表文件</p>
+            <AlertTriangle size={32} className="mx-auto mb-2 text-amber-600" />
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <p className="text-xs mt-1 text-muted-foreground">请先上传库存报表文件</p>
           </div>
         </div>
       )}
 
       {!loading && data && data.rows.length === 0 && (
-        <p className="text-center text-sm py-10" style={{ color: "#a3a3a3" }}>无库存数据</p>
+        <p className="text-center text-sm py-10 text-muted-foreground">无库存数据</p>
       )}
 
       {!loading && data && data.rows.length > 0 && (
-        <div className="rounded-xl border overflow-x-auto" style={{ borderColor: "#e8e5e0" }}>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr style={{ background: "#f5f4f2" }}>
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted">
                 {[
                   "ASIN / SKU", "可售数量", "在途数量", "可售天数",
                   "日均销量", "建议补货", "状态",
                 ].map((h) => (
-                  <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold whitespace-nowrap"
-                    style={{ color: "#737373", borderBottom: "1px solid #e8e5e0" }}>
+                  <TableHead key={h} className="text-xs text-muted-foreground font-semibold">
                     {h}
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {data.rows.map((row, i) => {
                 const level = getStockLevel(row);
-                const style = STOCK_STYLE[level];
+                const badgeStyle = STOCK_BADGE[level];
+                const textClass = STOCK_TEXT[level];
                 const sku   = row.asin ?? row.sku ?? row.fnsku ?? `row-${i}`;
                 const avail = row.availableQty ?? row.available_qty ?? row.availableUnits ?? "—";
                 const inbound = row.inboundQty ?? row.inbound_qty ?? row.inboundUnits ?? "—";
@@ -114,40 +125,34 @@ export default function InventoryPanel() {
                 const daily = row.dailySales ?? row.daily_sales ?? row.avgDailySales ?? "—";
                 const restock = row.restockQty ?? row.restock_qty ?? row.suggestedRestock ?? "—";
                 return (
-                  <tr key={i} style={{ background: i % 2 === 0 ? "#ffffff" : "#fafaf9", borderBottom: "1px solid #f0eeec" }}>
-                    <td className="px-3 py-2 font-mono text-xs" style={{ color: "#374151" }}>{sku}</td>
-                    <td className="px-3 py-2 text-xs font-medium" style={{ color: "#1a1a1a" }}>
+                  <TableRow key={i}>
+                    <TableCell className="font-mono text-xs">{sku}</TableCell>
+                    <TableCell className="font-mono text-sm font-medium">
                       {typeof avail === "number" ? avail.toLocaleString() : avail}
-                    </td>
-                    <td className="px-3 py-2 text-xs" style={{ color: "#374151" }}>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
                       {typeof inbound === "number" ? inbound.toLocaleString() : inbound}
-                    </td>
-                    <td
-                      className="px-3 py-2 text-xs font-semibold"
-                      style={{ color: style.text }}
-                    >
+                    </TableCell>
+                    <TableCell className={`font-mono text-sm font-semibold ${textClass}`}>
                       {typeof days === "number" ? `${days}天` : days}
-                    </td>
-                    <td className="px-3 py-2 text-xs" style={{ color: "#374151" }}>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
                       {typeof daily === "number" ? daily.toFixed(1) : daily}
-                    </td>
-                    <td className="px-3 py-2 text-xs font-medium" style={{ color: "#374151" }}>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm font-medium">
                       {typeof restock === "number" ? restock.toLocaleString() : restock}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span
-                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                        style={{ background: style.bg, color: style.text }}
-                      >
-                        {style.label}
-                      </span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={badgeStyle.variant} className={badgeStyle.className}>
+                        {badgeStyle.label}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );
