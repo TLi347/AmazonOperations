@@ -92,10 +92,16 @@ inventory         → get_inventory
 
 ```
 支持：
-  · 多 Session 并行，各自独立的对话上下文
-  · Session 历史持久化，刷新页面后可继续
-  · 跨品类分析（Chat 不绑定品类）
-  · 流式文字 + 工具调用可视化
+  ✅ 多 Session 并行，各自独立的对话上下文
+  ✅ Session 历史持久化，刷新页面后可继续
+  ✅ 跨品类分析（Chat 不绑定品类）
+  ✅ 流式文字 + 工具调用可视化
+  ✅ 停止生成（AbortController）
+  ✅ 重新生成回答
+  ✅ 错误重试
+  ✅ 滚动到底部按钮
+  ✅ 模型切换（Sonnet / Haiku / Opus）
+  ✅ Session 删除确认对话框（AlertDialog）
 
 不支持（本阶段）：
   · 多用户共享 Session

@@ -1,6 +1,8 @@
 # Proposal: 迁移到 Claude Agent SDK
 
-> Status: in-progress
+> Status: done
+>
+> 已完成迁移。已知问题：SDK 存在 API rate limit 触发频率较高的问题。
 
 ## 目标
 

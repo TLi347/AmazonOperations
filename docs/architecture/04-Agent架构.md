@@ -201,13 +201,6 @@ export const yzOpsMcpServer = createSdkMcpServer({
 | `src/app/api/sessions/[id]/run/route.ts` | SSE 流式 API 入口 |
 | `src/components/panels/ChatPanel.tsx` | 前端两栏布局 + SSE 消费 |
 
-### 遗留文件（不再使用，待清理）
-
-| 文件 | 说明 |
-|------|------|
-| `src/lib/skills/index.ts` | 旧 Skill 注册表，已被 mcpTools.ts 替代 |
-| `src/lib/skills/amazonOps.ts` | 旧 Amazon Ops Skill 封装，已被 mcpTools.ts 替代 |
-
 ---
 
 ## 八、依赖关系

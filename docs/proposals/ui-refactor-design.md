@@ -1,6 +1,6 @@
 # Proposal: UI 全面重构 — shadcn 组件化
 
-> Status: in-progress
+> Status: done
 
 ## 目标
 
