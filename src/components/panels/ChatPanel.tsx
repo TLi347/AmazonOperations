@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import {
-  Sparkles, Plus, Send, Copy, Check, Wrench,
+  Sparkles, Plus, Copy, Check, Wrench,
   MessageSquare, Trash2, Pencil, X,
   BarChart3, Package, Bell, TrendingUp,
+  RefreshCw, ArrowDown,
 } from "lucide-react"
 import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
@@ -15,7 +16,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import {
   Select,
   SelectTrigger,
@@ -38,7 +38,12 @@ import {
   Message,
   MessageContent,
   MessageResponse,
+  MessageToolbar,
+  MessageActions,
+  MessageAction,
 } from "@/components/ai-elements/message"
+import { PromptInputSubmit } from "@/components/ai-elements/prompt-input"
+import { Suggestions, Suggestion } from "@/components/ai-elements/suggestion"
 
 // ── Typing indicator ───────────────────────────────────────────────────────────
 
@@ -108,11 +113,33 @@ export default function ChatPanel() {
   const [renamingId, setRenamingId]           = useState<string | null>(null)
   const [renameValue, setRenameValue]         = useState("")
 
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef    = useRef<HTMLTextAreaElement>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const abortRef       = useRef<AbortController | null>(null)
+  const scrollRef      = useRef<HTMLDivElement>(null)
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }) }, [messages, streamingText])
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+    setShowScrollBtn(!isNearBottom)
+  }, [])
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort()
+    setIsStreaming(false)
+    setStreamingText("")
+    setToolBubbles([])
+  }, [])
 
   // ── Session 管理 ───────────────────────────────────────────────────────────
 
@@ -193,10 +220,12 @@ export default function ChatPanel() {
     }
 
     try {
+      abortRef.current = new AbortController()
       const response = await fetch(`/api/sessions/${activeSessionId}/run`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ userMessage: text, model: selectedModel }),
+        signal:  abortRef.current.signal,
       })
 
       const reader  = response.body!.getReader()
@@ -309,6 +338,24 @@ export default function ChatPanel() {
     })
   }
 
+  const handleRegenerate = useCallback(async (msg: ChatMessage) => {
+    const idx = messages.findIndex(m => m.id === msg.id)
+    if (idx <= 0) return
+    const userMsg = messages[idx - 1]
+    if (userMsg.role !== "user") return
+    setMessages(prev => prev.slice(0, idx))
+    await sendMessage(userMsg.content)
+  }, [messages, sendMessage])
+
+  const handleRetry = useCallback(async (msg: ChatMessage) => {
+    const idx = messages.findIndex(m => m.id === msg.id)
+    if (idx <= 0) return
+    const userMsg = messages[idx - 1]
+    if (userMsg.role !== "user") return
+    setMessages(prev => prev.slice(0, idx))
+    await sendMessage(userMsg.content)
+  }, [messages, sendMessage])
+
   const isTyping = isStreaming && streamingText === "" && toolBubbles.length === 0
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -407,7 +454,12 @@ export default function ChatPanel() {
       <div className="flex flex-col flex-1 min-w-0">
 
         {/* Messages area */}
-        <ScrollArea className="flex-1">
+        <div className="relative flex-1 overflow-hidden">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="h-full overflow-y-auto"
+        >
           <div className="mx-auto max-w-[720px] px-5 pt-6 pb-2">
 
             {/* Welcome state */}
@@ -420,16 +472,19 @@ export default function ChatPanel() {
                   <p className="text-sm font-medium text-foreground">YZ-Ops AI</p>
                   <p className="text-xs mt-1 text-muted-foreground">跨品类运营数据分析 · 已上传文件均可查询</p>
                 </div>
-                <div className="flex flex-wrap gap-2 justify-center">
+                <Suggestions className="justify-center flex-wrap">
                   {QUICK_PROMPTS.map(prompt => (
-                    <Button key={prompt.label} variant="outline" size="sm"
-                      className="gap-1.5 rounded-full hover:scale-[1.02] transition-all"
-                      onClick={() => handleSend(prompt.text)}>
+                    <Suggestion
+                      key={prompt.label}
+                      suggestion={prompt.text}
+                      onClick={(text) => handleSend(text)}
+                      className="gap-1.5"
+                    >
                       <span>{prompt.icon}</span>
                       <span>{prompt.label}</span>
-                    </Button>
+                    </Suggestion>
                   ))}
-                </div>
+                </Suggestions>
               </div>
             )}
 
@@ -442,6 +497,25 @@ export default function ChatPanel() {
                       <MessageContent>
                         <MessageResponse>{msg.content}</MessageResponse>
                       </MessageContent>
+                    </Message>
+                  )
+                }
+
+                const isError = msg.content.startsWith("错误：") || msg.content.startsWith("网络错误：")
+
+                if (isError) {
+                  return (
+                    <Message key={msg.id} from="assistant">
+                      <MessageContent>
+                        <div className="text-destructive text-sm">{msg.content}</div>
+                      </MessageContent>
+                      <MessageToolbar>
+                        <MessageActions>
+                          <MessageAction tooltip="重试" onClick={() => handleRetry(msg)}>
+                            <RefreshCw size={14} />
+                          </MessageAction>
+                        </MessageActions>
+                      </MessageToolbar>
                     </Message>
                   )
                 }
@@ -462,16 +536,17 @@ export default function ChatPanel() {
                     <MessageContent>
                       <MessageResponse>{msg.content}</MessageResponse>
                     </MessageContent>
-                    {/* Copy button */}
                     {msg.content && (
-                      <Button variant="ghost" size="icon-xs" title="复制"
-                        className={cn(
-                          "text-muted-foreground",
-                          copiedId === msg.id && "text-foreground"
-                        )}
-                        onClick={() => handleCopy(msg.id, msg.content)}>
-                        {copiedId === msg.id ? <Check size={13} /> : <Copy size={13} />}
-                      </Button>
+                      <MessageToolbar>
+                        <MessageActions>
+                          <MessageAction tooltip="复制" onClick={() => handleCopy(msg.id, msg.content)}>
+                            {copiedId === msg.id ? <Check size={14} /> : <Copy size={14} />}
+                          </MessageAction>
+                          <MessageAction tooltip="重新生成" onClick={() => handleRegenerate(msg)}>
+                            <RefreshCw size={14} />
+                          </MessageAction>
+                        </MessageActions>
+                      </MessageToolbar>
                     )}
                   </Message>
                 )
@@ -515,7 +590,21 @@ export default function ChatPanel() {
 
             <div ref={messagesEndRef} className="h-2" />
           </div>
-        </ScrollArea>
+        </div>
+        {showScrollBtn && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="rounded-full shadow-md gap-1"
+              onClick={scrollToBottom}
+            >
+              <ArrowDown size={14} />
+              回到底部
+            </Button>
+          </div>
+        )}
+        </div>
 
         {/* Input area */}
         <div className="flex-shrink-0 px-4 pb-4 pt-2 bg-background">
@@ -547,14 +636,12 @@ export default function ChatPanel() {
                 className="flex-1 resize-none border-0 bg-transparent shadow-none text-sm leading-relaxed min-h-[22px] max-h-[120px] py-0 px-0 focus-visible:ring-0 [scrollbar-width:none]"
               />
 
-              <Button
-                size="icon-sm"
+              <PromptInputSubmit
+                status={isStreaming ? "streaming" : "ready"}
+                onStop={handleStop}
                 onClick={() => handleSend()}
-                disabled={!input.trim() || isStreaming}
-                title="发送 (Enter)"
-              >
-                <Send size={14} />
-              </Button>
+                disabled={!input.trim() && !isStreaming}
+              />
             </div>
             <p className="text-center mt-2 text-[11px] text-muted-foreground/60">
               AI 建议基于已上传报表数据生成，仅供参考
