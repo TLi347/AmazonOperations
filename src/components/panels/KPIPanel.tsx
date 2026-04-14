@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useMemo } from "react";
+import useSWR from "swr";
+import { fetcher, swrOptions } from "@/lib/swr";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
 import { BarChart3 } from "lucide-react";
 import { Area, ComposedChart, CartesianGrid, Line, XAxis, YAxis } from "recharts";
@@ -83,71 +85,42 @@ export default function KPIPanel() {
   const { activeNav } = useAppStore();
   const activeCategoryKey = getCategoryKey(activeNav);
   const [window, setWindow] = useState<Window>("w7");
-  const [data, setData] = useState<KPIData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dailyData, setDailyData] = useState<Array<{ date: string; acos: number; gmv: number }>>([]);
-  const [funnelData, setFunnelData] = useState<FunnelData[] | null>(null);
-  const [funnelByAsin, setFunnelByAsin] = useState<AsinFunnel[] | null>(null);
-  const [scatterData, setScatterData] = useState<AsinScatterItem[]>([]);
 
-  /* Fetch ASIN scatter chart data */
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (activeCategoryKey) params.set("categoryKey", activeCategoryKey);
-    fetch(`/api/features/asin-scatter?${params}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.data) setScatterData(d.data as AsinScatterItem[]);
-      })
-      .catch(() => {});
-  }, [activeCategoryKey]);
+  /* KPI main data */
+  const kpiUrl = activeCategoryKey
+    ? `/api/features/kpi?window=${window}&categoryKey=${activeCategoryKey}`
+    : `/api/features/kpi?window=${window}`;
+  const { data, error, isLoading: loading } = useSWR<KPIData & { error?: string }>(kpiUrl, fetcher, swrOptions);
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams({ window });
-    if (activeCategoryKey) params.set("categoryKey", activeCategoryKey);
-    fetch(`/api/features/kpi?${params}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.error) { setError(d.error as string); return; }
-        setData(d as KPIData);
-      })
-      .catch(e => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, [activeCategoryKey, window]);
+  /* Funnel data */
+  const funnelUrl = activeCategoryKey
+    ? `/api/features/funnel?window=${window}&categoryKey=${activeCategoryKey}`
+    : `/api/features/funnel?window=${window}`;
+  const { data: funnelRaw } = useSWR<{ funnel?: FunnelData[]; byAsin?: AsinFunnel[] }>(
+    funnelUrl, fetcher, swrOptions,
+  );
+  const funnelData = funnelRaw?.funnel ?? null;
+  const funnelByAsin = funnelRaw?.byAsin ?? null;
 
-  /* Fetch funnel data for this category */
-  useEffect(() => {
-    const params = new URLSearchParams({ window });
-    if (activeCategoryKey) params.set("categoryKey", activeCategoryKey);
-    fetch(`/api/features/funnel?${params}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.funnel) setFunnelData(d.funnel as FunnelData[]);
-        if (d.byAsin) setFunnelByAsin(d.byAsin as AsinFunnel[]);
-      })
-      .catch(() => {});
-  }, [activeCategoryKey, window]);
+  /* ASIN scatter chart */
+  const scatterUrl = activeCategoryKey
+    ? `/api/features/asin-scatter?categoryKey=${activeCategoryKey}`
+    : `/api/features/asin-scatter`;
+  const { data: scatterRaw } = useSWR<{ data?: AsinScatterItem[] }>(scatterUrl, fetcher, swrOptions);
+  const scatterData = scatterRaw?.data ?? [];
 
-  /* Fetch daily trend data for ACoS & GMV chart */
-  useEffect(() => {
-    fetch("/api/features/overview")
-      .then(r => r.json())
-      .then(d => {
-        if (d.dailyTotals) {
-          setDailyData(
-            d.dailyTotals.map((day: { date: string; ad_spend: number; ad_sales: number; gmv: number }) => ({
-              date: day.date.slice(5),
-              acos: day.ad_sales > 0 ? (day.ad_spend / day.ad_sales) * 100 : 0,
-              gmv: day.gmv,
-            }))
-          );
-        }
-      })
-      .catch(() => {});
-  }, []);
+  /* Daily trend from overview */
+  const { data: overviewRaw } = useSWR<{ dailyTotals?: Array<{ date: string; ad_spend: number; ad_sales: number; gmv: number }> }>(
+    "/api/features/overview", fetcher, swrOptions,
+  );
+  const dailyData = useMemo(() => {
+    if (!overviewRaw?.dailyTotals) return [];
+    return overviewRaw.dailyTotals.map((day) => ({
+      date: day.date.slice(5),
+      acos: day.ad_sales > 0 ? (day.ad_spend / day.ad_sales) * 100 : 0,
+      gmv: day.gmv,
+    }));
+  }, [overviewRaw]);
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-background">
@@ -172,7 +145,7 @@ export default function KPIPanel() {
 
       {loading && <PanelSkeleton />}
 
-      {!loading && error && (
+      {!loading && (error || data?.error) && (
         <div className="flex items-center justify-center h-[60vh]">
           <Card className="max-w-sm">
             <CardContent className="text-center space-y-3 py-8">

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
+import useSWR, { mutate } from "swr";
+import { fetcher, swrOptions } from "@/lib/swr";
 import { Loader2, Plus, Upload } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,19 +39,12 @@ const FRESHNESS_LABEL: Record<string, string> = {
 
 export default function ContextPanel() {
   const [isOpen, setIsOpen]       = useState(true);
-  const [files, setFiles]         = useState<UploadedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadFiles = useCallback(() => {
-    fetch("/api/files")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setFiles(data as UploadedFile[]); })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => { loadFiles(); }, [loadFiles]);
+  const { data: filesRaw } = useSWR<UploadedFile[]>("/api/files", fetcher, swrOptions);
+  const files = Array.isArray(filesRaw) ? filesRaw : [];
 
   const handleUploadFile = useCallback(async (file: File) => {
     setUploading(true);
@@ -61,13 +56,13 @@ export default function ContextPanel() {
       if (!res.ok || data.error) throw new Error(data.error ?? "上传失败");
       const label = `${FILE_TYPE_LABELS[data.fileType ?? ""] ?? data.fileType} · ${data.rowCount ?? 0} 行`;
       toast.success("文件上传成功", { description: label });
-      loadFiles();
+      mutate("/api/files");
     } catch (err) {
       toast.error("上传失败", { description: err instanceof Error ? err.message : "上传失败" });
     } finally {
       setUploading(false);
     }
-  }, [loadFiles]);
+  }, []);
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

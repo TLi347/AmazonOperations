@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import useSWR from "swr";
+import { fetcher, swrOptions } from "@/lib/swr";
 import { useAppStore } from "@/store/appStore";
 import { cn } from "@/lib/utils";
 
@@ -140,57 +142,26 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 
 export default function OverviewPanel() {
   const { setActiveNav, setActiveFuncTab } = useAppStore();
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [funnelData, setFunnelData] = useState<FunnelData[] | null>(null);
-  const [funnelByAsin, setFunnelByAsin] = useState<AsinFunnel[] | null>(null);
-  const [categoryTrend, setCategoryTrend] = useState<{
+
+  const { data, error, isLoading: loading } = useSWR<OverviewData & { error?: string }>(
+    "/api/features/overview", fetcher, swrOptions,
+  );
+  const { data: funnelRaw } = useSWR<{ funnel?: FunnelData[]; byAsin?: AsinFunnel[] }>(
+    "/api/features/funnel?window=w7", fetcher, swrOptions,
+  );
+  const { data: categoryTrend } = useSWR<{
     data: Array<Record<string, string | number>>;
     categories: Array<{ key: string; label: string }>;
-  } | null>(null);
+  }>("/api/features/category-trend", fetcher, swrOptions);
 
-  useEffect(() => {
-    setLoading(true);
-    fetch("/api/features/overview")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) {
-          setError(d.error as string);
-          return;
-        }
-        setData(d as OverviewData);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/features/funnel?window=w7")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.funnel) setFunnelData(d.funnel as FunnelData[]);
-        if (d.byAsin) setFunnelByAsin(d.byAsin as AsinFunnel[]);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/features/category-trend")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.data && d.categories) {
-          setCategoryTrend({ data: d.data as Array<Record<string, string | number>>, categories: d.categories as Array<{ key: string; label: string }> });
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const funnelData = funnelRaw?.funnel ?? null;
+  const funnelByAsin = funnelRaw?.byAsin ?? null;
 
   if (loading) {
     return <PanelSkeleton />;
   }
 
-  if (error || !data) {
+  if (error || data?.error || !data) {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <Card className="max-w-sm">
@@ -353,7 +324,7 @@ export default function OverviewPanel() {
         {funnelData && (
           <AdFunnelChart data={funnelData} byAsin={funnelByAsin ?? undefined} title="广告转化漏斗（近7天）" />
         )}
-        {categoryTrend && (
+        {categoryTrend?.data && categoryTrend?.categories && (
           <CategoryTrendChart data={categoryTrend.data} categories={categoryTrend.categories} />
         )}
         {tacosData.length > 0 && (

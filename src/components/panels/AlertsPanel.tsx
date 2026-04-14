@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useMemo } from "react";
+import useSWR from "swr";
+import { fetcher, swrOptions } from "@/lib/swr";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
 import { AlertTriangle, Bell, CheckCircle, Lightbulb } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,30 +45,22 @@ function pct(v: number): string { return `${(v * 100).toFixed(1)}%`; }
 export default function AlertsPanel() {
   const { activeNav } = useAppStore();
   const activeCategoryKey = getCategoryKey(activeNav);
-  const [level, setLevel]     = useState<LevelFilter>("all");
-  const [alerts, setAlerts]   = useState<AlertRow[]>([]);
-  const [snapshotDate, setSnapshotDate] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [level, setLevel] = useState<LevelFilter>("all");
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams({ level });
-    if (activeCategoryKey) params.set("categoryKey", activeCategoryKey);
-    fetch(`/api/features/alerts?${params}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) { setError(d.error as string); return; }
-        setAlerts((d.alerts ?? []) as AlertRow[]);
-        setSnapshotDate(d.snapshotDate as string | null);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, [activeCategoryKey, level]);
+  const alertsUrl = activeCategoryKey
+    ? `/api/features/alerts?level=${level}&categoryKey=${activeCategoryKey}`
+    : `/api/features/alerts?level=${level}`;
+  const { data, error, isLoading: loading } = useSWR<{
+    alerts?: AlertRow[];
+    snapshotDate?: string;
+    error?: string;
+  }>(alertsUrl, fetcher, swrOptions);
 
-  const reds    = alerts.filter((a) => a.level === "red");
-  const yellows = alerts.filter((a) => a.level === "yellow");
+  const alerts = data?.alerts ?? [];
+  const snapshotDate = data?.snapshotDate ?? null;
+
+  const reds    = useMemo(() => alerts.filter((a) => a.level === "red"), [alerts]);
+  const yellows = useMemo(() => alerts.filter((a) => a.level === "yellow"), [alerts]);
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-background">
@@ -113,7 +107,7 @@ export default function AlertsPanel() {
 
       {loading && <PanelSkeleton />}
 
-      {!loading && error && (
+      {!loading && (error || data?.error) && (
         <div className="flex items-center justify-center h-full p-8">
           <Card className="max-w-sm">
             <CardContent className="text-center space-y-3 py-8">

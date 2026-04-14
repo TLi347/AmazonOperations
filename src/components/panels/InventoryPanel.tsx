@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import useSWR from "swr";
+import { fetcher, swrOptions } from "@/lib/swr";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
 import { AlertTriangle, Package } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,37 +46,21 @@ const STOCK_TEXT: Record<string, string> = {
 export default function InventoryPanel() {
   const { activeNav } = useAppStore();
   const activeCategoryKey = getCategoryKey(activeNav);
-  const [data, setData]       = useState<InventoryData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
-  const [matrixData, setMatrixData] = useState<InventoryMatrixItem[]>([]);
 
-  /* Fetch inventory matrix chart data */
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (activeCategoryKey) params.set("categoryKey", activeCategoryKey);
-    fetch(`/api/features/inventory-matrix?${params}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.data) setMatrixData(d.data as InventoryMatrixItem[]);
-      })
-      .catch(() => {});
-  }, [activeCategoryKey]);
+  const inventoryUrl = activeCategoryKey
+    ? `/api/features/inventory?categoryKey=${activeCategoryKey}`
+    : `/api/features/inventory`;
+  const { data, error, isLoading: loading } = useSWR<InventoryData & { error?: string }>(
+    inventoryUrl, fetcher, swrOptions,
+  );
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams();
-    if (activeCategoryKey) params.set("categoryKey", activeCategoryKey);
-    fetch(`/api/features/inventory?${params}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) { setError(d.error as string); return; }
-        setData(d as InventoryData);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, [activeCategoryKey]);
+  const matrixUrl = activeCategoryKey
+    ? `/api/features/inventory-matrix?categoryKey=${activeCategoryKey}`
+    : `/api/features/inventory-matrix`;
+  const { data: matrixRaw } = useSWR<{ data?: InventoryMatrixItem[] }>(
+    matrixUrl, fetcher, swrOptions,
+  );
+  const matrixData = matrixRaw?.data ?? [];
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-background">
@@ -96,7 +81,7 @@ export default function InventoryPanel() {
 
       {loading && <PanelSkeleton />}
 
-      {!loading && error && (
+      {!loading && (error || data?.error) && (
         <div className="flex items-center justify-center h-full p-8">
           <Card className="max-w-sm">
             <CardContent className="text-center space-y-3 py-8">

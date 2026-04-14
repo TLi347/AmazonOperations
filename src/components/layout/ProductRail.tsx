@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import useSWR from "swr";
+import { fetcher, swrOptions } from "@/lib/swr";
 import { useAppStore } from "@/store/appStore";
 import { LayoutDashboard, MessageSquare, Bed, Wrench, Bike, Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -19,29 +21,18 @@ const CATEGORY_ICONS: Record<string, ReactNode> = {
 
 export default function ProductRail() {
   const { activeNav, setActiveNav, setActiveFuncTab } = useAppStore();
-  const [categories, setCategories] = useState<CategoryInfo[]>([]);
-  const [latestDate, setLatestDate]  = useState<string>("");
 
-  useEffect(() => {
-    fetch("/api/categories")
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setCategories(data as CategoryInfo[]);
-      })
-      .catch(() => {});
+  const { data: categoriesRaw } = useSWR<CategoryInfo[]>("/api/categories", fetcher, swrOptions);
+  const categories = Array.isArray(categoriesRaw) ? categoriesRaw : [];
 
-    // Get latest data date from overview
-    fetch("/api/features/overview")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.period && typeof d.period === "string") {
-          // Extract end date from "近7天 (截至 2026-04-11)"
-          const m = /截至\s*([\d-]+)/.exec(d.period);
-          if (m) setLatestDate(m[1]);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const { data: overviewRaw } = useSWR<{ period?: string }>("/api/features/overview", fetcher, swrOptions);
+  const latestDate = useMemo(() => {
+    if (overviewRaw?.period && typeof overviewRaw.period === "string") {
+      const m = /截至\s*([\d-]+)/.exec(overviewRaw.period);
+      if (m) return m[1];
+    }
+    return "";
+  }, [overviewRaw]);
 
   function navTo(id: string) {
     setActiveNav(id);
