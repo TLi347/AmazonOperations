@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { subtractDays } from "@/lib/date-utils"
 
 type MetricsRaw = {
   gmv: number; orders: number; units: number
@@ -54,11 +55,6 @@ function derived(t: Totals) {
   }
 }
 
-function subtractDays(dateStr: string, n: number): string {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
-}
 
 export async function GET(req: NextRequest) {
   try {

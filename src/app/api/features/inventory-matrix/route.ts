@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { subtractDays } from "@/lib/date-utils"
 
 interface InventoryRow {
   asin: string
@@ -22,12 +23,6 @@ interface InventoryRow {
 type MetricsRaw = {
   orders: number
   [key: string]: unknown
-}
-
-function subtractDays(dateStr: string, n: number): string {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
 }
 
 type Quadrant = "critical" | "warning" | "healthy" | "stale" | "observe"
@@ -81,7 +76,7 @@ export async function GET(req: NextRequest) {
     for (const row of inventoryRows) {
       const asin = (row.asin ?? row.fnsku ?? "") as string
       if (!asin) continue
-      if (targetAsins && !targetAsins.some((a) => asin.includes(a))) continue
+      if (targetAsins && !targetAsins.includes(asin)) continue
 
       const sellableQty =
         (row.availableQty as number) ??
