@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { AsinScatterChart, type AsinScatterItem } from "@/components/charts/AsinScatterChart";
+import { AdFunnelChart, type FunnelData, type AsinFunnel } from "@/components/charts/FunnelChart";
 
 type Window = "today" | "yesterday" | "w7" | "w14" | "d30";
 
@@ -86,6 +87,8 @@ export default function KPIPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dailyData, setDailyData] = useState<Array<{ date: string; acos: number; gmv: number }>>([]);
+  const [funnelData, setFunnelData] = useState<FunnelData[] | null>(null);
+  const [funnelByAsin, setFunnelByAsin] = useState<AsinFunnel[] | null>(null);
   const [scatterData, setScatterData] = useState<AsinScatterItem[]>([]);
 
   /* Fetch ASIN scatter chart data */
@@ -113,6 +116,19 @@ export default function KPIPanel() {
       })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
+  }, [activeCategoryKey, window]);
+
+  /* Fetch funnel data for this category */
+  useEffect(() => {
+    const params = new URLSearchParams({ window });
+    if (activeCategoryKey) params.set("categoryKey", activeCategoryKey);
+    fetch(`/api/features/funnel?${params}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.funnel) setFunnelData(d.funnel as FunnelData[]);
+        if (d.byAsin) setFunnelByAsin(d.byAsin as AsinFunnel[]);
+      })
+      .catch(() => {});
   }, [activeCategoryKey, window]);
 
   /* Fetch daily trend data for ACoS & GMV chart */
@@ -192,9 +208,13 @@ export default function KPIPanel() {
             })}
           </div>
 
-          {/* ACoS & GMV Trend Chart */}
-          {dailyData.length > 0 && (
-            <Card className="mb-6">
+          {/* Funnel + Trend — 2-column */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            {funnelData && (
+              <AdFunnelChart data={funnelData} byAsin={funnelByAsin ?? undefined} title="广告转化漏斗" />
+            )}
+            {dailyData.length > 0 && (
+            <Card>
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <div>
@@ -216,6 +236,7 @@ export default function KPIPanel() {
               </CardContent>
             </Card>
           )}
+          </div>
 
           {/* ASIN Efficiency Scatter Chart */}
           {scatterData.length > 0 && (

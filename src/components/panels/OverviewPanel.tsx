@@ -348,26 +348,18 @@ export default function OverviewPanel() {
         </Card>
       )}
 
-      {/* Ad Conversion Funnel */}
-      {funnelData && (
-        <div className="mb-6">
+      {/* Charts — 2-column grid */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        {funnelData && (
           <AdFunnelChart data={funnelData} byAsin={funnelByAsin ?? undefined} title="广告转化漏斗（近7天）" />
-        </div>
-      )}
-
-      {/* Category GMV Stacked Trend */}
-      {categoryTrend && (
-        <div className="mb-6">
+        )}
+        {categoryTrend && (
           <CategoryTrendChart data={categoryTrend.data} categories={categoryTrend.categories} />
-        </div>
-      )}
-
-      {/* TACoS Trend */}
-      {tacosData.length > 0 && (
-        <div className="mb-6">
+        )}
+        {tacosData.length > 0 && (
           <TACoSTrendChart data={tacosData} />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Category cards — trend + KPI side by side */}
       <div className="grid gap-4 grid-cols-1">
