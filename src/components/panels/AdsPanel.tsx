@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
+import { fetcher, swrOptions } from "@/lib/swr";
 import { useAppStore, getCategoryKey } from "@/store/appStore";
 import { AlertTriangle, Target } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/table";
+import { SearchScatterChart } from "@/components/charts/SearchScatterChart";
 
 type Source = "campaign_3m" | "search_terms";
 
@@ -138,26 +141,19 @@ function SearchTermsTable({ rows }: { rows: AnyRow[] }) {
 export default function AdsPanel() {
   const { activeNav } = useAppStore();
   const activeCategoryKey = getCategoryKey(activeNav);
-  const [source, setSource]   = useState<Source>("campaign_3m");
-  const [data, setData]       = useState<AdsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [source, setSource] = useState<Source>("campaign_3m");
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    setData(null);
-    const params = new URLSearchParams({ source });
-    if (activeCategoryKey) params.set("categoryKey", activeCategoryKey);
-    fetch(`/api/features/ads?${params}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) { setError(d.error as string); return; }
-        setData(d as AdsData);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, [activeCategoryKey, source]);
+  const adsUrl = activeCategoryKey
+    ? `/api/features/ads?source=${source}&categoryKey=${activeCategoryKey}`
+    : `/api/features/ads?source=${source}`;
+  const { data, error, isLoading: loading } = useSWR<AdsData & { error?: string }>(
+    adsUrl, fetcher, swrOptions,
+  );
+
+  const { data: scatterRaw } = useSWR<{ data?: Array<{
+    term: string; clicks: number; cvr: number; acos: number | null; spend: number; orders: number;
+  }> }>("/api/features/search-scatter", fetcher, swrOptions);
+  const scatterData = scatterRaw?.data ?? null;
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-background">
@@ -190,9 +186,16 @@ export default function AdsPanel() {
         </div>
       </div>
 
+      {/* Search Term Scatter Chart */}
+      {scatterData && scatterData.length > 0 && (
+        <div className="mb-6">
+          <SearchScatterChart data={scatterData} />
+        </div>
+      )}
+
       {loading && <PanelSkeleton />}
 
-      {!loading && error && (
+      {!loading && (error || data?.error) && (
         <div className="flex items-center justify-center h-full p-8">
           <Card className="max-w-sm">
             <CardContent className="text-center space-y-3 py-8">

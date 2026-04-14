@@ -124,15 +124,19 @@ export async function GET() {
         kpi = { ...totals, ...derived(totals), dayCount: catDailyRows.length }
       }
 
-      // Per-category daily GMV for mini bar chart
-      const catDailyMap = new Map<string, number>()
+      // Per-category daily metrics for trend charts
+      const catDailyMap = new Map<string, { gmv: number; ad_spend: number; ad_sales: number }>()
       for (const row of catDailyRows) {
         const m = JSON.parse(row.metrics) as MetricsRaw
-        catDailyMap.set(row.date, (catDailyMap.get(row.date) ?? 0) + (m.gmv ?? 0))
+        const existing = catDailyMap.get(row.date) ?? { gmv: 0, ad_spend: 0, ad_sales: 0 }
+        existing.gmv += m.gmv ?? 0
+        existing.ad_spend += m.ad_spend ?? 0
+        existing.ad_sales += m.ad_sales ?? 0
+        catDailyMap.set(row.date, existing)
       }
       const daily = Array.from(catDailyMap.entries())
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, gmv]) => ({ date, gmv }))
+        .map(([date, d]) => ({ date, gmv: d.gmv, ad_spend: d.ad_spend, ad_sales: d.ad_sales }))
 
       // Alert counts
       let alertRed = 0

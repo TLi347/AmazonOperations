@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import useSWR from "swr";
+import { fetcher, swrOptions } from "@/lib/swr";
 import { useAppStore } from "@/store/appStore";
 import { cn } from "@/lib/utils";
 
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
+import { AdFunnelChart, type FunnelData, type AsinFunnel } from "@/components/charts/FunnelChart";
+import { CategoryTrendChart } from "@/components/charts/CategoryTrendChart";
+import { TACoSTrendChart } from "@/components/charts/TACoSTrendChart";
 import { AlertTriangle, Bed, Wrench, Bike, Package, FileUp, DollarSign, ShoppingCart, TrendingUp, Percent } from "lucide-react";
 import { PanelSkeleton } from "@/components/ui/panel-skeleton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,7 +41,7 @@ interface CategorySummary {
     roas: number | null;
     dayCount: number;
   };
-  daily: Array<{ date: string; gmv: number }>;
+  daily: Array<{ date: string; gmv: number; ad_spend: number; ad_sales: number }>;
   alerts: { red: number; yellow: number };
 }
 
@@ -124,22 +129,6 @@ function MetricChart({
   );
 }
 
-const barConfig = {
-  gmv: { label: "GMV", color: "#3b82f6" },
-} satisfies ChartConfig
-
-function CategoryBarChart({ data }: { data: Array<{ date: string; gmv: number }> }) {
-  return (
-    <ChartContainer config={barConfig} className="h-16 w-full">
-      <BarChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-        <ChartTooltip
-          content={<ChartTooltipContent hideLabel formatter={(value) => `$${Number(value).toLocaleString()}`} />}
-        />
-        <Bar dataKey="gmv" fill="var(--color-gmv)" radius={[3, 3, 0, 0]} />
-      </BarChart>
-    </ChartContainer>
-  );
-}
 
 /* ---------- Category icons ---------- */
 
@@ -153,30 +142,26 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 
 export default function OverviewPanel() {
   const { setActiveNav, setActiveFuncTab } = useAppStore();
-  const [data, setData] = useState<OverviewData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
-    fetch("/api/features/overview")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) {
-          setError(d.error as string);
-          return;
-        }
-        setData(d as OverviewData);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, error, isLoading: loading } = useSWR<OverviewData & { error?: string }>(
+    "/api/features/overview", fetcher, swrOptions,
+  );
+  const { data: funnelRaw } = useSWR<{ funnel?: FunnelData[]; byAsin?: AsinFunnel[] }>(
+    "/api/features/funnel?window=w7", fetcher, swrOptions,
+  );
+  const { data: categoryTrend } = useSWR<{
+    data: Array<Record<string, string | number>>;
+    categories: Array<{ key: string; label: string }>;
+  }>("/api/features/category-trend", fetcher, swrOptions);
+
+  const funnelData = funnelRaw?.funnel ?? null;
+  const funnelByAsin = funnelRaw?.byAsin ?? null;
 
   if (loading) {
     return <PanelSkeleton />;
   }
 
-  if (error || !data) {
+  if (error || data?.error || !data) {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <Card className="max-w-sm">
@@ -196,6 +181,13 @@ export default function OverviewPanel() {
   const dailyTotalsWithAcos = data.dailyTotals.map((d) => ({
     ...d,
     acos: d.ad_sales > 0 ? d.ad_spend / d.ad_sales : 0,
+  }));
+
+  /* Compute TACoS + ACoS trend from existing dailyTotals */
+  const tacosData = data.dailyTotals.map((d) => ({
+    date: d.date.slice(5),
+    tacos: d.gmv > 0 ? +((d.ad_spend / d.gmv) * 100).toFixed(1) : 0,
+    acos: d.ad_sales > 0 ? +((d.ad_spend / d.ad_sales) * 100).toFixed(1) : 0,
   }));
 
   /* Previous ACoS */
@@ -327,97 +319,116 @@ export default function OverviewPanel() {
         </Card>
       )}
 
-      {/* Category cards */}
-      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
-        {data.categories.map((cat) => (
-          <Card
-            key={cat.categoryKey}
-            className="cursor-pointer transition-all hover:shadow-md"
-            onClick={() => {
-              setActiveNav(cat.categoryKey);
-              setActiveFuncTab("kpi");
-            }}
-          >
-            <CardContent>
-              {/* Card header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center">
-                    {CATEGORY_ICONS[cat.categoryKey] ?? (
-                      <Package size={24} className="text-muted-foreground" />
-                    )}
-                  </span>
-                  <div>
-                    <p className="font-semibold text-sm text-foreground">
-                      {cat.displayName}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {cat.asins.length} 个 ASIN
-                    </p>
+      {/* Charts — 2-column grid */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        {funnelData && (
+          <AdFunnelChart data={funnelData} byAsin={funnelByAsin ?? undefined} title="广告转化漏斗（近7天）" />
+        )}
+        {categoryTrend?.data && categoryTrend?.categories && (
+          <CategoryTrendChart data={categoryTrend.data} categories={categoryTrend.categories} />
+        )}
+        {tacosData.length > 0 && (
+          <TACoSTrendChart data={tacosData} />
+        )}
+      </div>
+
+      {/* Category cards — trend + KPI side by side */}
+      <div className="grid gap-4 grid-cols-1">
+        {data.categories.map((cat) => {
+          // Compute daily ACoS for trend line
+          const catTrendData = cat.daily.map(d => ({
+            date: d.date.slice(5),
+            gmv: d.gmv,
+            acos: d.ad_sales > 0 ? +((d.ad_spend / d.ad_sales) * 100).toFixed(1) : 0,
+          }))
+          const catTrendConfig = {
+            gmv: { label: "GMV", color: "#2563eb" },
+            acos: { label: "ACoS", color: "#06b6d4" },
+          } satisfies ChartConfig
+
+          return (
+            <Card
+              key={cat.categoryKey}
+              className="cursor-pointer transition-all hover:shadow-md"
+              onClick={() => { setActiveNav(cat.categoryKey); setActiveFuncTab("kpi"); }}
+            >
+              <CardContent className="p-4">
+                {/* Header: icon + name + alerts */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center">
+                      {CATEGORY_ICONS[cat.categoryKey] ?? <Package size={20} className="text-muted-foreground" />}
+                    </span>
+                    <div>
+                      <p className="font-semibold text-sm text-foreground">{cat.displayName}</p>
+                      <p className="text-[10px] text-muted-foreground">{cat.asins.length} 个 ASIN</p>
+                    </div>
                   </div>
+                  {(cat.alerts.red > 0 || cat.alerts.yellow > 0) && (
+                    <div className="flex gap-1">
+                      {cat.alerts.red > 0 && <Badge variant="destructive" className="text-[10px]">{cat.alerts.red} 红</Badge>}
+                      {cat.alerts.yellow > 0 && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">{cat.alerts.yellow} 黄</Badge>}
+                    </div>
+                  )}
                 </div>
-                {(cat.alerts.red > 0 || cat.alerts.yellow > 0) && (
-                  <div className="flex gap-1">
-                    {cat.alerts.red > 0 && (
-                      <Badge variant="destructive" className="text-[10px]">
-                        {cat.alerts.red} 红
-                      </Badge>
+
+                {cat.kpi.dayCount === 0 ? (
+                  <p className="text-xs text-center text-muted-foreground py-4">暂无数据，请上传产品报表</p>
+                ) : (
+                  <div className="flex gap-6">
+                    {/* Left: Trend chart */}
+                    {catTrendData.length > 0 && (
+                      <div className="flex-1 min-w-0">
+                        <ChartContainer config={catTrendConfig} className="h-32 w-full">
+                          <AreaChart data={catTrendData} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                            <YAxis yAxisId="gmv" hide />
+                            <YAxis yAxisId="acos" hide />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <defs>
+                              <linearGradient id={`fill-gmv-${cat.categoryKey}`} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2} />
+                                <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                              </linearGradient>
+                            </defs>
+                            <Area type="natural" dataKey="gmv" stroke="var(--color-gmv)" fill={`url(#fill-gmv-${cat.categoryKey})`} strokeWidth={2} dot={false} yAxisId="gmv" />
+                            <Area type="natural" dataKey="acos" stroke="var(--color-acos)" fill="none" strokeWidth={1.5} strokeDasharray="4 2" dot={false} yAxisId="acos" />
+                          </AreaChart>
+                        </ChartContainer>
+                        <div className="flex justify-center gap-4 mt-1">
+                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <span className="w-3 h-0.5 bg-[#2563eb] rounded" /> GMV
+                          </span>
+                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <span className="w-3 h-0.5 bg-[#06b6d4] rounded border-dashed" /> ACoS
+                          </span>
+                        </div>
+                      </div>
                     )}
-                    {cat.alerts.yellow > 0 && (
-                      <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">
-                        {cat.alerts.yellow} 黄
-                      </Badge>
-                    )}
+
+                    {/* Right: KPI numbers horizontal */}
+                    <div className="flex flex-wrap gap-x-6 gap-y-3 items-start shrink-0">
+                      {[
+                        { label: "GMV", value: fmt(cat.kpi.gmv, "currency") },
+                        { label: "订单", value: fmt(cat.kpi.orders, "number") },
+                        { label: "ACoS", value: cat.kpi.acos != null ? fmt(cat.kpi.acos, "pct") : "—", warn: cat.kpi.acos != null && cat.kpi.acos > 0.5 },
+                        { label: "ROAS", value: cat.kpi.roas != null ? cat.kpi.roas.toFixed(2) : "—" },
+                        { label: "广告花费", value: fmt(cat.kpi.ad_spend, "currency") },
+                        { label: "广告销售", value: fmt(cat.kpi.ad_sales, "currency") },
+                      ].map(({ label, value, warn }) => (
+                        <div key={label} className="min-w-[70px]">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>
+                          <p className={cn("text-sm font-bold font-mono", warn ? "text-destructive" : "text-foreground")}>{value}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
-              </div>
-
-              {/* Mini bar chart — 7-day GMV */}
-              {cat.daily && cat.daily.length > 0 && (
-                <div className="mb-3 rounded-md bg-muted/50 p-2">
-                  <CategoryBarChart data={cat.daily} />
-                  <p className="text-[10px] text-muted-foreground text-center mt-1">
-                    近7天 GMV
-                  </p>
-                </div>
-              )}
-
-              {/* KPI grid */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                {[
-                  { label: "GMV", value: fmt(cat.kpi.gmv, "currency") },
-                  { label: "订单量", value: fmt(cat.kpi.orders, "number") },
-                  {
-                    label: "ACoS",
-                    value: cat.kpi.acos != null ? fmt(cat.kpi.acos, "pct") : "\u2014",
-                    warn: cat.kpi.acos != null && cat.kpi.acos > 0.5,
-                  },
-                  {
-                    label: "ROAS",
-                    value: cat.kpi.roas != null ? cat.kpi.roas.toFixed(2) : "\u2014",
-                  },
-                  { label: "广告花费", value: fmt(cat.kpi.ad_spend, "currency") },
-                  { label: "广告销售", value: fmt(cat.kpi.ad_sales, "currency") },
-                ].map(({ label, value, warn }) => (
-                  <div key={label}>
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    <p
-                      className={`text-sm font-semibold font-mono ${warn ? "text-destructive" : "text-foreground"}`}
-                    >
-                      {value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {cat.kpi.dayCount === 0 && (
-                <p className="mt-3 text-[11px] text-center text-muted-foreground">
-                  暂无数据，请上传产品报表
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     </div>
   );
