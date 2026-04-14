@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
+import { AdFunnelChart, type FunnelData } from "@/components/charts/FunnelChart";
 import { AlertTriangle, Bed, Wrench, Bike, Package, FileUp, DollarSign, ShoppingCart, TrendingUp, Percent } from "lucide-react";
 import { PanelSkeleton } from "@/components/ui/panel-skeleton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -156,6 +157,7 @@ export default function OverviewPanel() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [funnelData, setFunnelData] = useState<FunnelData[] | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -170,6 +172,13 @@ export default function OverviewPanel() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/features/funnel?window=w7")
+      .then((r) => r.json())
+      .then((d) => { if (d.funnel) setFunnelData(d.funnel as FunnelData[]); })
+      .catch(() => {});
   }, []);
 
   if (loading) {
@@ -325,6 +334,13 @@ export default function OverviewPanel() {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Ad Conversion Funnel */}
+      {funnelData && (
+        <div className="mb-6">
+          <AdFunnelChart data={funnelData} title="广告转化漏斗（近7天）" />
+        </div>
       )}
 
       {/* Category cards */}
