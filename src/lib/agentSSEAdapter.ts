@@ -1,12 +1,15 @@
 /**
- * lib/agentLoop.ts
+ * lib/agentSSEAdapter.ts
  *
- * 基于 Claude Agent SDK query() 的 Agent 执行层。
+ * SDK 消息 → SSE 事件适配层。
  *
- * SDK 自动处理工具调用循环，本文件负责：
- * 1. 调用 query() 并传入 MCP 工具 + system prompt
- * 2. 解析 SDKMessage 流，转换为 SSE 事件推送前端
- * 3. 返回最终结果供调用方持久化
+ * SDK 内部自动处理工具调用循环（query → tool_use → execute → tool_result → ...），
+ * 本文件只是消费 SDK 产出的消息流，翻译为前端 ChatPanel 能理解的 SSE 事件：
+ *   system       → session_start
+ *   stream_event → text_delta
+ *   assistant    → tool_start
+ *   user         → tool_done
+ *   result       → done / error
  *
  * SSE 事件格式（与前端 ChatPanel.tsx 兼容）：
  *   { type: "session_start", sessionId: string }
@@ -25,6 +28,15 @@ import {
 import { yzOpsMcpServer } from "./mcpTools"
 
 const MAX_TURNS = 10
+
+// ── Debug logger ─────────────────────────────────────────────────────────────
+const TAG = "[Agent]"
+const log = {
+  info:  (...args: unknown[]) => console.log(TAG, ...args),
+  tool:  (...args: unknown[]) => console.log(TAG, "[Tool]", ...args),
+  stream:(...args: unknown[]) => console.log(TAG, "[Stream]", ...args),
+  error: (...args: unknown[]) => console.error(TAG, "[ERROR]", ...args),
+}
 
 export interface ToolCallRecord {
   tool:          string
@@ -93,15 +105,21 @@ export async function runAgentLoop(
   let   fullText        = ""
   let   resultSessionId = sdkSessionId ?? null
   let   hasStreamedText = false  // 标记是否通过 stream_event 收到过文字
+  let   systemInited    = false  // 标记 system 消息是否已处理（SDK 每轮都发）
+  let   turnCount       = 0      // 当前轮次
 
   // 跟踪当前活跃的 tool_use，用于匹配 tool_result
   const pendingTools = new Map<string, { name: string; input: Record<string, unknown> }>()
+
+  const resolvedModel = model || process.env.AGENT_MODEL || "haiku"
+  log.info(`── 开始 ── session=${sessionId} model=${resolvedModel} resume=${!!sdkSessionId}`)
+  log.info(`prompt: "${userMessage.slice(0, 100)}${userMessage.length > 100 ? "…" : ""}"`)
 
   try {
     for await (const message of query({
       prompt: userMessage,
       options: {
-        model:                  model || process.env.AGENT_MODEL || "sonnet",
+        model:                  resolvedModel,
         maxTurns:               MAX_TURNS,
         systemPrompt:           systemPrompt,
         includePartialMessages: true,
@@ -112,11 +130,16 @@ export async function runAgentLoop(
         ...(sdkSessionId ? { resume: sdkSessionId } : {}),
       },
     })) {
-      // ── system init（仅一次）───────────────────────────────────────────
+      // ── system init（每轮都收到，仅首次打日志+推事件）─────────────────────
       if (message.type === "system") {
         const sysMsg = message as SDKSystemMessage
         resultSessionId = sysMsg.session_id
-        onEvent({ type: "session_start", sessionId })
+        if (!systemInited) {
+          systemInited = true
+          log.info(`sdk_session=${resultSessionId}`)
+          onEvent({ type: "session_start", sessionId })
+        }
+        turnCount++
       }
 
       // ── token 级流式（stream_event = SDKPartialAssistantMessage）──────────
@@ -142,6 +165,7 @@ export async function runAgentLoop(
             const name  = shortToolName(block.name)
             const input = (block.input ?? {}) as Record<string, unknown>
             pendingTools.set(block.id, { name, input })
+            log.tool(`▶ ${name}`, JSON.stringify(input).slice(0, 200))
             onEvent({ type: "tool_start", tool: name, input })
           }
           // 仅在非流式模式下收集文字（流式已通过 stream_event 收集完毕）
@@ -166,6 +190,7 @@ export async function runAgentLoop(
               const resultText    = extractToolResultText(block.content)
               const resultSummary = buildResultSummary(pending.name, resultText)
               toolCalls.push({ tool: pending.name, input: pending.input, resultSummary })
+              log.tool(`✓ ${pending.name} → ${resultSummary.slice(0, 120)}`)
               onEvent({ type: "tool_done", tool: pending.name, resultSummary })
               pendingTools.delete(block.tool_use_id)
             }
@@ -183,15 +208,18 @@ export async function runAgentLoop(
           if (!fullText && result.result) {
             fullText = result.result
           }
+          log.info(`── 完成 ── turns=${turnCount} tools=${toolCalls.length} text=${fullText.length}chars`)
         } else {
           const errors = (result as { errors?: string[] }).errors
           const errorMsg = errors?.join("; ") ?? result.subtype ?? "Agent 执行出错"
+          log.error(`subtype=${result.subtype}`, errorMsg)
           onEvent({ type: "error", message: errorMsg })
         }
       }
     }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
+    log.error(`异常: ${errorMsg}`)
     onEvent({ type: "error", message: errorMsg })
     return { role: "assistant", content: fullText || errorMsg, toolCalls, sdkSessionId: resultSessionId }
   }

@@ -12,7 +12,7 @@
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
 import { buildAgentSystemPrompt } from "@/lib/buildSystemPrompt"
-import { runAgentLoop } from "@/lib/agentLoop"
+import { runAgentLoop } from "@/lib/agentSSEAdapter"
 
 export async function POST(
   req: NextRequest,
@@ -32,9 +32,12 @@ export async function POST(
   // 异步执行 agent loop（不阻塞 SSE 响应返回）
   ;(async () => {
     try {
+      console.log(`[API] POST /api/sessions/${sessionId}/run model=${model ?? "default"} msg="${userMessage.slice(0, 60)}"`)
+
       // 1. 查询 Session，获取 SDK session ID（用于 resume 续接多轮对话）
       const session = await db.session.findUnique({ where: { id: sessionId } })
       const sdkSessionId = session?.sdkSessionId ?? null
+      console.log(`[API] session found=${!!session} sdkSessionId=${sdkSessionId ?? "none"}`)
 
       // 2. 构建 System Prompt（每次重新拉取，感知新上传文件）
       const systemPrompt = await buildAgentSystemPrompt()
@@ -56,6 +59,7 @@ export async function POST(
           data:  { sdkSessionId: result.sdkSessionId },
         })
       }
+      console.log(`[API] agent done — tools=${result.toolCalls.length} content=${result.content.length}chars`)
 
       // 5. 持久化：写入 user + assistant 消息
       const [, savedAssistant] = await Promise.all([
@@ -91,6 +95,7 @@ export async function POST(
 
       send({ type: "done", messageId: savedAssistant.id })
     } catch (err) {
+      console.error(`[API] session=${sessionId} 异常:`, err)
       send({ type: "error", message: String(err) })
     } finally {
       await writer.close()

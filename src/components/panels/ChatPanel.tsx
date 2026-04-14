@@ -136,19 +136,40 @@ export default function ChatPanel() {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const abortRef       = useRef<AbortController | null>(null)
   const scrollRef      = useRef<HTMLDivElement>(null)
+  const isNearBottomRef = useRef(true)
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }) }, [messages, streamingText])
+  // 直接操作 scrollRef.scrollTop，避免 scrollIntoView 滚动错误的祖先容器
+  const scrollToBottom = useCallback((smooth = true) => {
+    const el = scrollRef.current
+    if (!el) return
+    if (smooth) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
+    } else {
+      el.scrollTop = el.scrollHeight
+    }
+    isNearBottomRef.current = true
+  }, [])
+
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      scrollToBottom(false)
+    }
+  }, [messages, scrollToBottom])
+
+  // streaming 时平滑跟随
+  useEffect(() => {
+    if (isNearBottomRef.current && streamingText) {
+      scrollToBottom(false)
+    }
+  }, [streamingText, scrollToBottom])
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+    isNearBottomRef.current = isNearBottom
     setShowScrollBtn(!isNearBottom)
   }, [])
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort()
@@ -159,25 +180,31 @@ export default function ChatPanel() {
 
   // ── Session 管理 ───────────────────────────────────────────────────────────
 
-  const loadSessions = useCallback(async () => {
+  // 用 ref 跟踪最新的 activeSessionId，避免 useCallback 闭包陈旧
+  const activeSessionRef = useRef(activeSessionId)
+  activeSessionRef.current = activeSessionId
+
+  const loadSessions = useCallback(async (skipAutoSelect = false) => {
     const data = await fetch("/api/sessions").then(r => r.json()) as SessionMeta[]
     setSessions(data)
-    // 若没有激活 Session 且有列表，自动选第一个
-    if (!activeSessionId && data.length > 0) {
-      await selectSession(data[0].id, false)
+    // 仅在初始加载（无激活 session）时自动选第一个
+    if (!skipAutoSelect && !activeSessionRef.current && data.length > 0) {
+      setActiveSessionId(data[0].id)
+      const detail = await fetch(`/api/sessions/${data[0].id}`).then(r => r.json()) as { messages: ChatMessage[] }
+      setMessages(detail.messages ?? [])
     }
-  }, [activeSessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
-  useEffect(() => { loadSessions() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadSessions() }, [loadSessions])
 
-  const selectSession = useCallback(async (sessionId: string, refresh = true) => {
+  const selectSession = useCallback(async (sessionId: string) => {
     setActiveSessionId(sessionId)
     setStreamingText("")
     setToolBubbles([])
     const data = await fetch(`/api/sessions/${sessionId}`).then(r => r.json()) as { messages: ChatMessage[] }
     setMessages(data.messages ?? [])
-    if (refresh) loadSessions()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    loadSessions(true) // 刷新列表但不自动选择
+  }, [loadSessions])
 
   const createSession = useCallback(async () => {
     const session = await fetch("/api/sessions", { method: "POST" }).then(r => r.json()) as SessionMeta
@@ -380,7 +407,7 @@ export default function ChatPanel() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-1 bg-background">
+    <div className="flex flex-1 min-h-0 overflow-hidden bg-background">
 
       {/* ── 左栏：Session 列表 ─────────────────────────────────────────────── */}
       <div className="flex flex-col flex-shrink-0 w-[220px] border-r border-border bg-muted/50">
@@ -471,7 +498,7 @@ export default function ChatPanel() {
       </div>
 
       {/* ── 右栏：对话区 ────────────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 min-h-0">
 
         {/* Messages area */}
         <div className="relative flex-1 overflow-hidden">
