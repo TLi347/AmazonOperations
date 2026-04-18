@@ -21,6 +21,7 @@ import type { FileType } from "@/lib/parsers/identifier"
 import { parseProduct, contextParsers } from "@/lib/parsers/index"
 import { db } from "@/lib/db"
 import { runAndPersistAlerts } from "@/lib/rules/alerts/index"
+import { runAndPersistSopActions } from "@/lib/rules/sop/index"
 
 export async function POST(req: NextRequest) {
   try {
@@ -98,6 +99,9 @@ export async function POST(req: NextRequest) {
 
     // 4. 触发告警引擎（product / keyword_monitor / inventory / us_campaign_30d 依赖文件）
     await runAndPersistAlerts(fileType)
+
+    // 5. 触发 SOP 行动清单引擎（search_terms / campaign_3m / us_campaign_30d 依赖文件）
+    await runAndPersistSopActions(fileType)
 
     return NextResponse.json({ fileType, snapshotDate, rowCount })
   } catch (err) {

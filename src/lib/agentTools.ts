@@ -36,6 +36,11 @@ export function getFreshness(
 
 // ── 工具执行 ───────────────────────────────────────────────────────────────
 
+/** 返回带特殊前缀的错误字符串，由 mcpTools.ts 的 wrapResult 转换为 isError: true */
+function toolError(msg: string): string {
+  return `__TOOL_ERROR__: ${msg}`
+}
+
 export async function executeTool(
   name:  string,
   input: Record<string, unknown>
@@ -58,7 +63,7 @@ export async function executeTool(
             take:      2,
           })
           const targetDate = distinctDates[offset]?.date
-          if (!targetDate) return JSON.stringify({ error: `暂无${tw === "today" ? "今日" : "昨日"}数据` })
+          if (!targetDate) return toolError(`暂无${tw === "today" ? "今日" : "昨日"}数据`)
 
           const where = input.asin
             ? { asin: input.asin as string, date: targetDate }
@@ -75,7 +80,7 @@ export async function executeTool(
           orderBy: { date: "desc" },
           select:  { date: true },
         })
-        if (!latest) return JSON.stringify({ error: "暂无数据，请先上传产品报表" })
+        if (!latest) return toolError("暂无数据，请先上传产品报表")
 
         const fromDate = subtractDays(latest.date, numDays - 1)
         const where = input.asin
@@ -93,14 +98,14 @@ export async function executeTool(
           orderBy: { date: "desc" },
           select:  { date: true },
         })
-        if (!latest) return JSON.stringify({ error: "暂无数据" })
+        if (!latest) return toolError("暂无数据")
 
         const fromDate = subtractDays(latest.date, days - 1)
         const rows = await db.productMetricDay.findMany({
           where:   { asin, date: { gte: fromDate } },
           orderBy: { date: "asc" },
         })
-        if (rows.length === 0) return JSON.stringify({ error: `ASIN ${asin} 无历史数据` })
+        if (rows.length === 0) return toolError(`ASIN ${asin} 无历史数据`)
 
         return JSON.stringify(rows.map(r => {
           const m = JSON.parse(r.metrics) as Record<string, number>
@@ -118,14 +123,14 @@ export async function executeTool(
       // ── get_inventory ─────────────────────────────────────────────────────
       case "get_inventory": {
         const file = await db.contextFile.findUnique({ where: { fileType: "inventory" } })
-        if (!file) return JSON.stringify({ error: "库存报表未上传，请上传「库存报表」文件" })
+        if (!file) return toolError("库存报表未上传，请上传「库存报表」文件")
         return JSON.stringify({ rows: JSON.parse(file.parsedRows), snapshotDate: file.snapshotDate })
       }
 
       // ── get_ad_campaigns ─────────────────────────────────────────────────
       case "get_ad_campaigns": {
         const file = await db.contextFile.findUnique({ where: { fileType: "campaign_3m" } })
-        if (!file) return JSON.stringify({ error: "广告活动重构报表未上传" })
+        if (!file) return toolError("广告活动重构报表未上传")
 
         let rows = JSON.parse(file.parsedRows) as Array<Record<string, unknown>>
         if (input.asin) rows = rows.filter(r => r.asin === input.asin)
@@ -149,7 +154,7 @@ export async function executeTool(
       // ── get_search_terms ──────────────────────────────────────────────────
       case "get_search_terms": {
         const file = await db.contextFile.findUnique({ where: { fileType: "search_terms" } })
-        if (!file) return JSON.stringify({ error: "搜索词重构报表未上传" })
+        if (!file) return toolError("搜索词重构报表未上传")
 
         let rows = JSON.parse(file.parsedRows) as Array<Record<string, unknown>>
         if (input.asin) rows = rows.filter(r => r.asin === input.asin)
@@ -177,7 +182,7 @@ export async function executeTool(
       // ── get_alerts ────────────────────────────────────────────────────────
       case "get_alerts": {
         const latest = await db.alert.findFirst({ orderBy: { snapshotDate: "desc" }, select: { snapshotDate: true } })
-        if (!latest) return JSON.stringify({ error: "暂无告警数据，请先上传产品报表" })
+        if (!latest) return toolError("暂无告警数据，请先上传产品报表")
 
         const alerts = await db.alert.findMany({
           where: {
@@ -207,10 +212,10 @@ export async function executeTool(
       // ── get_file_data ─────────────────────────────────────────────────────
       case "get_file_data": {
         const fileType = input.file_type as string
-        if (!fileType) return JSON.stringify({ error: "缺少 file_type 参数" })
+        if (!fileType) return toolError("缺少 file_type 参数")
 
         const file = await db.contextFile.findUnique({ where: { fileType } })
-        if (!file) return JSON.stringify({ error: `文件类型 "${fileType}" 未上传` })
+        if (!file) return toolError(`文件类型 "${fileType}" 未上传`)
 
         const limit = (input.limit as number) ?? 50
         const allRows = JSON.parse(file.parsedRows) as unknown[]
@@ -224,10 +229,10 @@ export async function executeTool(
       }
 
       default:
-        return JSON.stringify({ error: `未知工具: ${name}` })
+        return `__TOOL_ERROR__: 未知工具: ${name}`
     }
   } catch (err) {
-    return JSON.stringify({ error: `工具执行出错: ${err instanceof Error ? err.message : String(err)}` })
+    return `__TOOL_ERROR__: ${err instanceof Error ? err.message : String(err)}`
   }
 }
 

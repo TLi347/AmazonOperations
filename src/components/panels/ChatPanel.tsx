@@ -5,7 +5,7 @@ import {
   Sparkles, Plus, Copy, Check, Wrench,
   MessageSquare, Trash2, Pencil, X,
   BarChart3, Package, Bell, TrendingUp,
-  RefreshCw, ArrowDown, User,
+  RefreshCw, ArrowDown, User, AlertTriangle,
 } from "lucide-react"
 import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
@@ -128,6 +128,7 @@ export default function ChatPanel() {
   const [copiedId, setCopiedId]               = useState<string | null>(null)
   const [renamingId, setRenamingId]           = useState<string | null>(null)
   const [renameValue, setRenameValue]         = useState("")
+  const [contextResetWarning, setContextResetWarning] = useState(false)
 
   const [showScrollBtn, setShowScrollBtn] = useState(false)
 
@@ -201,6 +202,7 @@ export default function ChatPanel() {
     setActiveSessionId(sessionId)
     setStreamingText("")
     setToolBubbles([])
+    setContextResetWarning(false)
     const data = await fetch(`/api/sessions/${sessionId}`).then(r => r.json()) as { messages: ChatMessage[] }
     setMessages(data.messages ?? [])
     loadSessions(true) // 刷新列表但不自动选择
@@ -291,6 +293,10 @@ export default function ChatPanel() {
               resultSummary?: string
               messageId?:     string
               message?:       string
+            }
+
+            if (event.type === "context_reset") {
+              setContextResetWarning(true)
             }
 
             if (event.type === "text_delta" && event.delta) {
@@ -430,67 +436,65 @@ export default function ChatPanel() {
             {sessions.map(session => (
               <div key={session.id}
                 className={cn(
-                  "group flex items-center gap-2 px-3 py-2 mx-1.5 mb-0.5 rounded-lg cursor-pointer transition-colors",
+                  "group flex flex-col px-3 py-2 mx-1.5 mb-0.5 rounded-lg cursor-pointer transition-colors",
                   "hover:bg-muted",
-                  activeSessionId === session.id
-                    ? "bg-primary/5 shadow-sm"
-                    : ""
+                  activeSessionId === session.id ? "bg-primary/5 shadow-sm" : ""
                 )}
                 data-active={activeSessionId === session.id}
                 onClick={() => selectSession(session.id)}>
 
-                <MessageSquare size={13} className="text-muted-foreground flex-shrink-0" />
-
-                {renamingId === session.id ? (
-                  <Input
-                    ref={renameInputRef}
-                    value={renameValue}
-                    onChange={e => setRenameValue(e.target.value)}
-                    onBlur={commitRename}
-                    onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingId(null) }}
-                    onClick={e => e.stopPropagation()}
-                    className="flex-1 h-5 text-xs border-0 border-b border-foreground rounded-none bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-foreground"
-                  />
-                ) : (
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs truncate block text-foreground/80">{session.title}</span>
-                    <span className="text-[10px] text-muted-foreground">{relativeTime(session.updatedAt)}</span>
-                  </div>
-                )}
-
-                {renamingId !== session.id && (
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* 顶行：图标 + 标题 + 重命名（hover 显示）*/}
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={13} className="text-muted-foreground flex-shrink-0" />
+                  {renamingId === session.id ? (
+                    <Input
+                      ref={renameInputRef}
+                      value={renameValue}
+                      onChange={e => setRenameValue(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingId(null) }}
+                      onClick={e => e.stopPropagation()}
+                      className="flex-1 h-5 text-xs border-0 border-b border-foreground rounded-none bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-foreground"
+                    />
+                  ) : (
+                    <span className="flex-1 text-xs truncate text-foreground/80">{session.title}</span>
+                  )}
+                  {renamingId !== session.id && (
                     <Button variant="ghost" size="icon-xs" title="重命名"
                       onClick={e => startRename(session, e)}
-                      className="text-muted-foreground">
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground flex-shrink-0">
                       <Pencil size={11} />
                     </Button>
+                  )}
+                </div>
 
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon-xs" title="删除"
-                          onClick={e => e.stopPropagation()}
-                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                          <Trash2 size={11} />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent size="sm">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>删除对话</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            确定要删除「{session.title}」吗？此操作不可撤销。
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>取消</AlertDialogCancel>
-                          <AlertDialogAction variant="destructive" onClick={() => deleteSession(session.id)}>
-                            删除
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                )}
+                {/* 底行：时间 + 删除按钮（常显）*/}
+                <div className="flex items-center justify-between mt-0.5 pl-5">
+                  <span className="text-[10px] text-muted-foreground">{relativeTime(session.updatedAt)}</span>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon-xs" title="删除"
+                        onClick={e => e.stopPropagation()}
+                        className="text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive flex-shrink-0">
+                        <Trash2 size={11} />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent size="sm">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>删除对话</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          确定要删除「{session.title}」吗？此操作不可撤销。
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>取消</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" onClick={() => deleteSession(session.id)}>
+                          删除
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             ))}
           </div>
@@ -499,6 +503,20 @@ export default function ChatPanel() {
 
       {/* ── 右栏：对话区 ────────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 min-h-0">
+
+        {/* Context reset warning */}
+        {contextResetWarning && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-yellow-50 border-b border-yellow-200 text-xs text-yellow-800 flex-shrink-0">
+            <AlertTriangle size={13} className="flex-shrink-0" />
+            <span>对话上下文已重置，Claude 不记得之前的工具调用记录</span>
+            <button
+              onClick={() => setContextResetWarning(false)}
+              className="ml-auto p-0.5 rounded hover:bg-yellow-100"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
 
         {/* Messages area */}
         <div className="relative flex-1 overflow-hidden">
@@ -677,7 +695,7 @@ export default function ChatPanel() {
               variant="secondary"
               size="sm"
               className="rounded-full shadow-md gap-1"
-              onClick={scrollToBottom}
+              onClick={() => scrollToBottom()}
             >
               <ArrowDown size={14} />
               回到底部

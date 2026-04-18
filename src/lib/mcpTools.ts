@@ -9,6 +9,19 @@ import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk"
 import { z } from "zod"
 import { executeTool } from "./agentTools"
 
+// ── 工具结果包装 ───────────────────────────────────────────────────────────
+
+/** 将 executeTool 的返回值转为 MCP tool result 格式，识别 __TOOL_ERROR__ 前缀 */
+function wrapResult(result: string) {
+  if (result.startsWith("__TOOL_ERROR__: ")) {
+    return {
+      content: [{ type: "text" as const, text: result.slice("__TOOL_ERROR__: ".length) }],
+      isError: true,
+    }
+  }
+  return { content: [{ type: "text" as const, text: result }] }
+}
+
 // ── 工具定义 ───────────────────────────────────────────────────────────────
 
 const getMetrics = tool(
@@ -19,8 +32,7 @@ const getMetrics = tool(
     asin: z.string().optional().describe("可选，不传则返回所有 ASIN 的聚合数据"),
   },
   async (args) => {
-    const result = await executeTool("get_metrics", args)
-    return { content: [{ type: "text" as const, text: result }] }
+    return wrapResult(await executeTool("get_metrics", args))
   },
   { annotations: { readOnlyHint: true } }
 )
@@ -33,8 +45,7 @@ const getAcosHistory = tool(
     days: z.number().optional().describe("最近 N 天，默认 30"),
   },
   async (args) => {
-    const result = await executeTool("get_acos_history", args)
-    return { content: [{ type: "text" as const, text: result }] }
+    return wrapResult(await executeTool("get_acos_history", args))
   },
   { annotations: { readOnlyHint: true } }
 )
@@ -44,8 +55,7 @@ const getInventory = tool(
   "查询所有 ASIN 的库存状况（可售库存量、补货建议）",
   {},
   async (args) => {
-    const result = await executeTool("get_inventory", args)
-    return { content: [{ type: "text" as const, text: result }] }
+    return wrapResult(await executeTool("get_inventory", args))
   },
   { annotations: { readOnlyHint: true } }
 )
@@ -58,8 +68,7 @@ const getAdCampaigns = tool(
     asin: z.string().optional().describe("可选，限定某个 ASIN"),
   },
   async (args) => {
-    const result = await executeTool("get_ad_campaigns", args)
-    return { content: [{ type: "text" as const, text: result }] }
+    return wrapResult(await executeTool("get_ad_campaigns", args))
   },
   { annotations: { readOnlyHint: true } }
 )
@@ -72,8 +81,7 @@ const getSearchTerms = tool(
     asin: z.string().optional().describe("可选，限定某个 ASIN"),
   },
   async (args) => {
-    const result = await executeTool("get_search_terms", args)
-    return { content: [{ type: "text" as const, text: result }] }
+    return wrapResult(await executeTool("get_search_terms", args))
   },
   { annotations: { readOnlyHint: true } }
 )
@@ -86,8 +94,7 @@ const getAlerts = tool(
     category: z.string().optional().describe("可选，按品类过滤，如 'mattress' / 'pump' / 'scooter'"),
   },
   async (args) => {
-    const result = await executeTool("get_alerts", args)
-    return { content: [{ type: "text" as const, text: result }] }
+    return wrapResult(await executeTool("get_alerts", args))
   },
   { annotations: { readOnlyHint: true } }
 )
@@ -97,8 +104,7 @@ const listUploadedFiles = tool(
   "列出 context/ 中已上传的所有报表文件及其上传日期和新鲜度状态",
   {},
   async (args) => {
-    const result = await executeTool("list_uploaded_files", args)
-    return { content: [{ type: "text" as const, text: result }] }
+    return wrapResult(await executeTool("list_uploaded_files", args))
   },
   { annotations: { readOnlyHint: true } }
 )
@@ -111,8 +117,7 @@ const getFileData = tool(
     limit: z.number().optional().describe("返回行数上限，默认 50"),
   },
   async (args) => {
-    const result = await executeTool("get_file_data", args)
-    return { content: [{ type: "text" as const, text: result }] }
+    return wrapResult(await executeTool("get_file_data", args))
   },
   { annotations: { readOnlyHint: true } }
 )

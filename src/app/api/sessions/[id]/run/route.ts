@@ -11,7 +11,6 @@
 
 import { NextRequest } from "next/server"
 import { db } from "@/lib/db"
-import { buildAgentSystemPrompt } from "@/lib/buildSystemPrompt"
 import { runAgentLoop } from "@/lib/agentSSEAdapter"
 
 export async function POST(
@@ -39,21 +38,27 @@ export async function POST(
       const sdkSessionId = session?.sdkSessionId ?? null
       console.log(`[API] session found=${!!session} sdkSessionId=${sdkSessionId ?? "none"}`)
 
-      // 2. 构建 System Prompt（每次重新拉取，感知新上传文件）
-      const systemPrompt = await buildAgentSystemPrompt()
-
-      // 3. 执行 Agent Loop（SDK 自动处理工具调用循环）
+      // 2. 执行 Agent Loop（SDK 自动处理工具调用循环）
+      //    系统提示通过项目根目录 CLAUDE.md 加载（Method 1）
+      //    传入 req.signal：HTTP 连接断开时 generator 停止 yield，SDK 中断执行
       const result = await runAgentLoop(
         sessionId,
         userMessage,
-        systemPrompt,
         send,
         sdkSessionId,
         model,
+        req.signal,
       )
 
-      // 4. 持久化 SDK session ID（首次对话后写入，后续用于 resume）
-      if (result.sdkSessionId && result.sdkSessionId !== sdkSessionId) {
+      // 4. 持久化 SDK session ID
+      //    - resume 正常：新 ID 写入（首次对话）或保持不变
+      //    - contextReset（resume 静默失败）：清空旧 ID，写入新 ID，防止下次继续 resume 无效 ID
+      if (result.contextReset) {
+        await db.session.update({
+          where: { id: sessionId },
+          data:  { sdkSessionId: result.sdkSessionId ?? null },
+        })
+      } else if (result.sdkSessionId && result.sdkSessionId !== sdkSessionId) {
         await db.session.update({
           where: { id: sessionId },
           data:  { sdkSessionId: result.sdkSessionId },
