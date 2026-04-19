@@ -98,7 +98,7 @@ export async function POST(
         })
       }
 
-      send({ type: "done", messageId: savedAssistant.id })
+      send({ type: "done", messageId: savedAssistant.id, content: result.content })
     } catch (err) {
       console.error(`[API] session=${sessionId} 异常:`, err)
       send({ type: "error", message: String(err) })

@@ -98,6 +98,30 @@ interface ToolBubble {
   resultSummary?: string
 }
 
+interface QuestionOption {
+  label:       string
+  description: string
+}
+
+interface Question {
+  question:    string
+  header:      string
+  options:     QuestionOption[]
+  multiSelect: boolean
+}
+
+interface PendingQuestion {
+  requestId: string
+  questions: Question[]
+  answers:   Record<string, string[]>  // key = question index string, value = selected labels
+}
+
+interface PendingApproval {
+  requestId: string
+  toolName:  string
+  input:     Record<string, unknown>
+}
+
 // ── Relative time helper ──────────────────────────────────────────────────────
 
 function relativeTime(dateStr: string): string {
@@ -129,6 +153,8 @@ export default function ChatPanel() {
   const [renamingId, setRenamingId]           = useState<string | null>(null)
   const [renameValue, setRenameValue]         = useState("")
   const [contextResetWarning, setContextResetWarning] = useState(false)
+  const [pendingQuestion, setPendingQuestion]         = useState<PendingQuestion | null>(null)
+  const [pendingApproval, setPendingApproval]         = useState<PendingApproval | null>(null)
 
   const [showScrollBtn, setShowScrollBtn] = useState(false)
 
@@ -264,6 +290,8 @@ export default function ChatPanel() {
       setStreamingText("")
       setToolBubbles([])
       setIsStreaming(false)
+      setPendingQuestion(null)
+      setPendingApproval(null)
     }
 
     try {
@@ -299,6 +327,16 @@ export default function ChatPanel() {
               setContextResetWarning(true)
             }
 
+            if (event.type === "ask_user_question") {
+              const ev = event as unknown as { requestId: string; questions: Question[] }
+              setPendingQuestion({ requestId: ev.requestId, questions: ev.questions, answers: {} })
+            }
+
+            if (event.type === "approval_request") {
+              const ev = event as unknown as { requestId: string; toolName: string; input: Record<string, unknown> }
+              setPendingApproval({ requestId: ev.requestId, toolName: ev.toolName, input: ev.input })
+            }
+
             if (event.type === "text_delta" && event.delta) {
               localText += event.delta
               setStreamingText(prev => prev + event.delta!)
@@ -320,12 +358,13 @@ export default function ChatPanel() {
             }
 
             if (event.type === "done") {
+              const finalContent = localText || (event as { content?: string }).content || ""
               setMessages(prev => [
                 ...prev,
                 {
                   id:        event.messageId ?? `tmp-a-${Date.now()}`,
                   role:      "assistant" as const,
-                  content:   localText,
+                  content:   finalContent,
                   toolCalls: localBubbles.map(b => ({ tool: b.tool, input: b.input, resultSummary: b.resultSummary ?? "" })),
                 },
               ])
@@ -408,7 +447,52 @@ export default function ChatPanel() {
     await sendMessage(userMsg.content)
   }, [messages, sendMessage])
 
-  const isTyping = isStreaming && streamingText === "" && toolBubbles.length === 0
+  const selectAnswer = useCallback((questionIndex: number, label: string, multiSelect: boolean) => {
+    setPendingQuestion(prev => {
+      if (!prev) return prev
+      const key = String(questionIndex)
+      if (multiSelect) {
+        const current = prev.answers[key] ?? []
+        const updated = current.includes(label) ? current.filter(l => l !== label) : [...current, label]
+        return { ...prev, answers: { ...prev.answers, [key]: updated } }
+      }
+      return { ...prev, answers: { ...prev.answers, [key]: [label] } }
+    })
+  }, [])
+
+  const submitAnswers = useCallback(async () => {
+    if (!pendingQuestion || !activeSessionId) return
+    const { requestId, questions, answers } = pendingQuestion
+    await fetch(`/api/sessions/${activeSessionId}/answer`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        requestId,
+        behavior:     "allow",
+        updatedInput: {
+          questions: questions.map((q, i) => ({ ...q, answer: answers[String(i)] ?? [] })),
+        },
+      }),
+    })
+    setPendingQuestion(null)
+  }, [pendingQuestion, activeSessionId])
+
+  const submitApproval = useCallback(async (behavior: "allow" | "deny") => {
+    if (!pendingApproval || !activeSessionId) return
+    const { requestId, input } = pendingApproval
+    await fetch(`/api/sessions/${activeSessionId}/answer`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(
+        behavior === "allow"
+          ? { requestId, behavior, updatedInput: input }
+          : { requestId, behavior, message: "用户拒绝了此操作" }
+      ),
+    })
+    setPendingApproval(null)
+  }, [pendingApproval, activeSessionId])
+
+  const isTyping = isStreaming && streamingText === "" && toolBubbles.length === 0 && !pendingQuestion && !pendingApproval
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -680,6 +764,63 @@ export default function ChatPanel() {
                           : <MessageResponse isAnimating>{streamingText}</MessageResponse>
                         }
                       </MessageContent>
+
+                      {/* AskUserQuestion card */}
+                      {pendingQuestion && (
+                        <div className="mt-2 border border-border rounded-lg p-3 bg-muted/30 space-y-3">
+                          {pendingQuestion.questions.map((q, qi) => (
+                            <div key={qi}>
+                              {q.header && <p className="text-xs font-semibold mb-0.5">{q.header}</p>}
+                              <p className="text-xs text-muted-foreground mb-2">{q.question}</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {q.options.map(opt => {
+                                  const selected = (pendingQuestion.answers[String(qi)] ?? []).includes(opt.label)
+                                  return (
+                                    <button
+                                      key={opt.label}
+                                      onClick={() => selectAnswer(qi, opt.label, q.multiSelect)}
+                                      title={opt.description}
+                                      className={cn(
+                                        "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                                        selected
+                                          ? "bg-primary text-primary-foreground border-primary"
+                                          : "bg-background border-border hover:border-primary/50"
+                                      )}
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                          <Button
+                            size="sm"
+                            onClick={submitAnswers}
+                            disabled={pendingQuestion.questions.some((_q, i) => !(pendingQuestion.answers[String(i)]?.length))}
+                          >
+                            提交
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Approval request card */}
+                      {pendingApproval && (
+                        <div className="mt-2 border border-border rounded-lg p-3 bg-muted/30">
+                          <p className="text-xs font-semibold mb-1">
+                            请求调用工具：<code className="bg-muted px-1 py-0.5 rounded text-[11px]">{pendingApproval.toolName}</code>
+                          </p>
+                          {Object.keys(pendingApproval.input).length > 0 && (
+                            <pre className="text-[11px] bg-muted rounded p-2 mt-1 overflow-x-auto max-h-[120px] text-muted-foreground">
+                              {JSON.stringify(pendingApproval.input, null, 2)}
+                            </pre>
+                          )}
+                          <div className="flex gap-2 mt-2">
+                            <Button size="sm" onClick={() => submitApproval("allow")}>允许</Button>
+                            <Button size="sm" variant="outline" onClick={() => submitApproval("deny")}>拒绝</Button>
+                          </div>
+                        </div>
+                      )}
                     </Message>
                   </div>
                 </div>

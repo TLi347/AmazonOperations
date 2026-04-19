@@ -26,8 +26,19 @@ import {
   type SDKResultMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk"
+import { yzOpsMcpServer } from "./mcpTools"
 
 const MAX_TURNS = 10
+
+type ApprovalResponse =
+  | { behavior: "allow"; updatedInput: Record<string, unknown> }
+  | { behavior: "deny";  message: string }
+
+// canUseTool 的 Promise 桥：key = requestId，value = resolve/reject
+export const pendingApprovals = new Map<string, {
+  resolve: (v: ApprovalResponse) => void
+  reject:  (reason: unknown) => void
+}>()
 
 // ── Debug logger ─────────────────────────────────────────────────────────────
 const TAG = "[Agent]"
@@ -156,14 +167,41 @@ export async function runAgentLoop(
         pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_PATH || "/Users/tli/.local/bin/claude",
         model:                  resolvedModel,
         maxTurns:               MAX_TURNS,
-        includePartialMessages: false,  // POC: 测试是否消除 ?beta=true
+        includePartialMessages: true,
         permissionMode:         "bypassPermissions",
-        tools:                  [],
-        mcpServers:             {},
-        allowedTools:           [],     // POC: 测试是否消除 ?beta=true
+        tools:                  ["Skill", "AskUserQuestion"],
+        mcpServers:             { "yz-ops": yzOpsMcpServer },
+        allowedTools:           ["mcp__yz-ops__*", "Skill"],
+        canUseTool: async (toolName: string, input: Record<string, unknown>) => {
+          const requestId = crypto.randomUUID()
+          log.info(`canUseTool: ${toolName} requestId=${requestId}`)
+
+          if (toolName === "AskUserQuestion") {
+            onEvent({ type: "ask_user_question", requestId, questions: (input as { questions: unknown }).questions })
+          } else {
+            onEvent({ type: "approval_request", requestId, toolName, input })
+          }
+
+          return new Promise<ApprovalResponse>((resolve, reject) => {
+            pendingApprovals.set(requestId, { resolve, reject })
+
+            signal.addEventListener("abort", () => {
+              pendingApprovals.delete(requestId)
+              reject(new Error("connection closed"))
+            }, { once: true })
+
+            setTimeout(() => {
+              if (pendingApprovals.has(requestId)) {
+                pendingApprovals.delete(requestId)
+                reject(new Error("approval timeout (5 min)"))
+              }
+            }, 300_000)
+          })
+        },
         settingSources:         ["project"] as const,
         env: {
           ...(process.env as Record<string, string>),
+          // tool search 需要 Sonnet 4+，Haiku 不支持；8 个工具 < ~10 阈值，不需要
           ENABLE_TOOL_SEARCH: "false",
         },
         ...(sdkSessionId ? { resume: sdkSessionId } : {}),
